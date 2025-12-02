@@ -8,7 +8,7 @@ public class Main {
         try {
             String botToken = myConfiguration.getProperty("BOT_TOKEN");
             TelegramBotsLongPollingApplication botsApplication = new TelegramBotsLongPollingApplication();
-            botsApplication.registerBot(botToken, new GASTALDELLO_Telegram_Bot());
+            botsApplication.registerBot(botToken, new BotTelegramGastaldello());
         } catch(TelegramApiException e){
             e.printStackTrace();
             System.exit(-1);
