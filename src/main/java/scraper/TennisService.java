@@ -1,4 +1,4 @@
-package richieste;
+package scraper;
 
 import model.Match;
 import model.Player;
