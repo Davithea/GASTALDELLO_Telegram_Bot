@@ -174,9 +174,9 @@ public class BotTelegramGastaldello implements LongPollingSingleThreadUpdateCons
                         "Comandi disponibili:\n" +
                         " 🏆  /classificaatp - Top 10 ATP\n" +
                         " 🏁  /racetoturin - Top 10 Race\n" +
-                        "👨👨 /classificaatpdoppio - Top 10 ATP doppio" +
+                        "👨👨 /classificaatpdoppio - Top 10 ATP doppio\n" +
                         " 👩  /classificawta - Top 10 WTA\n" +
-                        "👩👩 /classificawtadoppio - Top 10 WTA doppio" +
+                        "👩👩 /classificawtadoppio - Top 10 WTA doppio\n" +
                         " 📅  /partite - Partite di oggi\n" +
                         " 🔍  /cerca - Cerca giocatore\n" +
                         " ⭐  /preferiti - I tuoi preferiti\n" +

@@ -427,49 +427,4 @@ public class DatabaseManager {
 
         return stats.toString();
     }
-
-    public String getTop10MostSearchedPlayers() {
-        StringBuilder result = new StringBuilder("🔝 TOP 10 GIOCATORI PIÙ CERCATI\n\n");
-
-        String sql = """
-            SELECT name, country, search_count 
-            FROM players 
-            ORDER BY search_count DESC 
-            LIMIT 10
-        """;
-
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-
-            int position = 1;
-            while (rs.next()) {
-                result.append(String.format("%d. %s (%s) - %d ricerche\n",
-                        position++,
-                        rs.getString("name"),
-                        rs.getString("country"),
-                        rs.getInt("search_count")));
-            }
-
-            if (position == 1) {
-                return "❌ Nessun giocatore ancora cercato.";
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return "⚠️ Errore nel recupero dei dati.";
-        }
-
-        return result.toString();
-    }
-
-    public void close() {
-        try {
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-                System.out.println("✅ Connessione database chiusa");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
 }
