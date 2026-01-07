@@ -457,28 +457,67 @@ private String formatRankings(List<Player> rankings, String type) {
     return sb.toString();
 }
 
-private String formatMatches(List<Match> matches) {
-    if (matches.isEmpty()) {
-        return "ℹ️ NESSUNA PARTITA LIVE\n\n" +
-                "Non ci sono partite in corso.\n\n" +
-                "Le partite live sono disponibili durante:\n" +
-                "🏆 Grand Slam\n" +
-                "🥇 Masters 1000\n" +
-                "🥈 ATP/WTA Tour\n\n" +
-                "Riprova più tardi!";
+// Sostituisci il metodo formatMatches nel BotTelegramGastaldello
+
+    // Sostituisci il metodo formatMatches nel BotTelegramGastaldello
+
+    private String formatMatches(List<Match> matches) {
+        if (matches.isEmpty()) {
+            return "ℹ️ NESSUNA PARTITA LIVE\n\n" +
+                    "Non ci sono partite in corso.\n\n" +
+                    "Le partite live sono disponibili durante:\n" +
+                    "🏆 Grand Slam\n" +
+                    "🥇 Masters 1000\n" +
+                    "🥈 ATP/WTA Tour\n\n" +
+                    "Riprova più tardi!";
+        }
+
+        StringBuilder sb = new StringBuilder("🎾 PARTITE DI OGGI\n\n");
+        String currentTournament = "";
+
+        for (Match match : matches) {
+            // Mostra il torneo solo se cambia
+            if (!match.getTournament().equals(currentTournament)) {
+                currentTournament = match.getTournament();
+                String emoji = getTournamentEmoji(currentTournament);
+                sb.append(String.format("\n%s %s\n", emoji, currentTournament));
+                sb.append("─────────────────────\n");
+            }
+
+            if (match.isFinished()) {
+                // 1️⃣ Nomi originali
+                sb.append(String.format("👤 %s vs %s\n", match.getPlayer1(), match.getPlayer2()));
+
+                // 2️⃣ Punteggio dettagliato
+                if (match.getDetailedScore() != null && !match.getDetailedScore().isEmpty()) {
+                    sb.append(String.format("📊 Punteggio: %s\n", match.getDetailedScore()));
+                }
+
+                // 3️⃣ Vincitore con set vinti
+                if (match.getWinner() != null && match.getSetScore() != null) {
+                    String winner = match.getWinner();
+                    String loser = winner.equals(match.getPlayer1()) ? match.getPlayer2() : match.getPlayer1();
+                    sb.append(String.format("%s b. %s %s\n", winner, loser, match.getSetScore()));
+                }
+
+            } else if (match.isLive() && match.getDetailedScore() != null) {
+                sb.append(String.format("👤 %s vs %s\n🔴 LIVE: %s\n",
+                        match.getPlayer1(), match.getPlayer2(), match.getDetailedScore()));
+            } else {
+                sb.append(String.format("👤 %s vs %s\n⏰ %s\n",
+                        match.getPlayer1(), match.getPlayer2(),
+                        (match.getStatus() != null ? match.getStatus() : "Non iniziata")));
+            }
+
+            sb.append("\n");
+        }
+
+        sb.append("📅 Ultimo aggiornamento: ")
+                .append(new java.text.SimpleDateFormat("HH:mm").format(new java.util.Date()));
+
+        return sb.toString();
     }
 
-    StringBuilder sb = new StringBuilder("🎾 PRINCIPALI PARTITE DI OGGI\n\n");
-
-    for (Match match : matches) {
-        String emoji = getTournamentEmoji(match.getTournament());
-        sb.append(String.format("%s %s\n", emoji, match.getTournament()));
-        sb.append(String.format("%s vs %s\n", match.getPlayer1(), match.getPlayer2()));
-        sb.append(String.format("STATO orario --> %s\n\n", match.getScore()));
-    }
-
-    return sb.toString();
-}
 
 private String getTournamentEmoji(String tournament) {
     String lower = tournament.toLowerCase();

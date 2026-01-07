@@ -89,12 +89,15 @@ public class TennisService {
                 };
 
                 int currentTableIndex = 0;
+
                 for (Element table : allTables) {
                     Elements headers = table.select("th");
                     String headerText = headers.text().toLowerCase();
 
                     if (headerText.contains("rank") || headerText.contains("player")) {
-                        if (type.equals("atp") || type.equals("atp_doppio") || type.equals("wta_doppio") && currentTableIndex < tableIndex) {
+
+                        if ((type.equals("atp") || type.equals("atp_doppio") || type.equals("wta_doppio"))
+                                && currentTableIndex < tableIndex) {
                             currentTableIndex++;
                             continue;
                         }
@@ -103,6 +106,8 @@ public class TennisService {
 
                         Elements rows = table.select("tbody tr");
 
+                        int lastRanking = -1; // ← per gestire "="
+
                         for (Element row : rows) {
                             if (players.size() >= limit) break;
 
@@ -110,10 +115,21 @@ public class TennisService {
                             if (cells.size() < 3) continue;
 
                             try {
-                                String rankText = cells.get(0).text().replaceAll("[^0-9]", "");
-                                if (rankText.isEmpty()) continue;
-                                int ranking = Integer.parseInt(rankText);
+                                // ---------------- RANKING ----------------
+                                String rawRank = cells.get(0).text().trim();
+                                int ranking;
 
+                                if (rawRank.equals("=")) {
+                                    if (lastRanking == -1) continue;
+                                    ranking = lastRanking;
+                                } else {
+                                    String rankText = rawRank.replaceAll("[^0-9]", "");
+                                    if (rankText.isEmpty()) continue;
+                                    ranking = Integer.parseInt(rankText);
+                                    lastRanking = ranking;
+                                }
+
+                                // ---------------- NOME ----------------
                                 String name = "";
                                 for (int i = 1; i < Math.min(cells.size(), 4); i++) {
                                     String cellText = cells.get(i).text().trim();
@@ -126,6 +142,7 @@ public class TennisService {
 
                                 if (name.isEmpty()) continue;
 
+                                // ---------------- PUNTI ----------------
                                 int points = 0;
                                 for (int i = 2; i < cells.size(); i++) {
                                     String pointsText = cells.get(i).text().replaceAll("[^0-9]", "");
@@ -135,6 +152,7 @@ public class TennisService {
                                     }
                                 }
 
+                                // ---------------- NAZIONE ----------------
                                 String country = "Unknown";
                                 for (Element cell : cells) {
                                     Elements imgs = cell.select("img");
@@ -616,11 +634,11 @@ public class TennisService {
                 "- https://www.ultimatetennisstatistics.com/";
     }
 
-    // ────────────── PARTITE LIVE ──────────────
+    // ────────────── PARTITE LIVE CON VINCITORE ──────────────
     public List<Match> getRecentMatches() {
         List<Match> matches = new ArrayList<>();
         ChromeOptions options = new ChromeOptions();
-        options.addArguments("--headless"); // senza GUI
+        options.addArguments("--headless");
         options.addArguments("--disable-blink-features=AutomationControlled");
         options.addArguments("--window-size=1920,1080");
 
@@ -635,15 +653,13 @@ public class TennisService {
             Thread.sleep(2000);
 
             int maxScrolls = 180;
-
             for (int scroll = 0; scroll < maxScrolls; scroll++) {
                 List<WebElement> elements = driver.findElements(By.cssSelector("a[href^='/it/tennis/']"));
 
                 for (WebElement el : elements) {
                     try {
                         String text = el.getText().trim();
-                        if (text.isEmpty()) continue;
-                        if (!processedTexts.add(text)) continue;
+                        if (text.isEmpty() || !processedTexts.add(text)) continue;
 
                         if (isTournamentTitle(text)) {
                             currentTournament = text;
@@ -655,14 +671,60 @@ public class TennisService {
                         MatchTextData data = parseMatchText(text);
                         if (!data.isValid() || data.time.isEmpty() || !data.hasValidStatus()) continue;
 
-                        matches.add(new Match(
+                        // Creiamo la match impostando solo l'orario e la priority
+                        Match match = new Match(
                                 currentTournament,
                                 data.players.get(0),
                                 data.players.get(1),
-                                data.status + " " + data.time,
+                                data.time,
                                 data.time,
                                 0
-                        ));
+                        );
+
+                        // Impostiamo lo status corretto
+                        match.setStatus(data.status);
+
+                        // Punteggio dettagliato
+                        if (!data.scores.isEmpty()) {
+                            String scoreString = String.join(" ", data.scores);
+                            match.setDetailedScore(scoreString);
+
+                            // Se è finita, calcoliamo il numero di set vinti da ciascuno
+                            if (data.status.equals("FINE") || data.status.equals("A tavolino")) {
+                                int player1Sets = 0;
+                                int player2Sets = 0;
+
+                                for (String set : data.scores) {
+                                    String[] parts = set.replaceAll("\\(\\d+\\)", "").split("-");
+                                    if (parts.length != 2) continue;
+
+                                    try {
+                                        int score1 = Integer.parseInt(parts[0].trim());
+                                        int score2 = Integer.parseInt(parts[1].trim());
+
+                                        if (score1 > score2) player1Sets++;
+                                        else if (score2 > score1) player2Sets++;
+                                    } catch (NumberFormatException e) {
+                                        // ignora set non valido
+                                    }
+                                }
+
+                                // Mettiamo sempre prima il numero maggiore
+                                int maxSets = Math.max(player1Sets, player2Sets);
+                                int minSets = Math.min(player1Sets, player2Sets);
+                                match.setSetScore(maxSets + "-" + minSets); // es. "2-0"
+                            }
+                        }
+
+                        // Determina il vincitore se partita finita
+                        if (data.status.equals("FINE") || data.status.equals("A tavolino")) {
+                            String winner = determineWinner(data);
+                            if (winner != null) {
+                                match.setWinner(winner);
+                            }
+                        }
+
+                        matches.add(match);
 
                     } catch (StaleElementReferenceException ignored) {}
                 }
@@ -680,6 +742,200 @@ public class TennisService {
         }
 
         return matches;
+    }
+
+    // ────────────── DETERMINA VINCITORE ──────────────
+    private String determineWinner(MatchTextData data) {
+        if (data.players.size() < 2 || data.scores.isEmpty()) {
+            return null;
+        }
+
+        int player1Sets = 0;
+        int player2Sets = 0;
+
+        // Analizza ogni set (formato: "6-4" o "7-6(3)")
+        for (String setScore : data.scores) {
+            String[] parts = setScore.replaceAll("\\(\\d+\\)", "").split("-");
+            if (parts.length != 2) continue;
+
+            try {
+                int score1 = Integer.parseInt(parts[0].trim());
+                int score2 = Integer.parseInt(parts[1].trim());
+
+                if (score1 > score2) {
+                    player1Sets++;
+                } else if (score2 > score1) {
+                    player2Sets++;
+                }
+            } catch (NumberFormatException e) {
+                // Ignora set non validi
+            }
+        }
+
+        // Chi ha vinto più set ha vinto la partita
+        if (player1Sets > player2Sets) {
+            return data.players.get(0);
+        } else if (player2Sets > player1Sets) {
+            return data.players.get(1);
+        }
+
+        return null; // Parità (improbabile)
+    }
+
+    // ────────────── PARSE MATCH TEXT AGGIORNATO ──────────────
+    private static MatchTextData parseMatchText(String text) {
+        MatchTextData data = new MatchTextData();
+        String[] lines = text.split("\n");
+
+        List<String> allNumbers = new ArrayList<>();
+
+        for (String line : lines) {
+            line = line.trim();
+            if (line.isEmpty()) continue;
+
+            // Orario
+            if (line.matches("\\d{1,2}:\\d{2}")) {
+                data.time = line;
+            }
+            // Status
+            else if (line.matches("LIVE|FINE|SRF|A tavolino|.*set|-|Annullata|Iniziato")) {
+                data.status = line;
+            }
+            // Punteggio già formattato (es. "6-4" o "7-6(3)")
+            else if (line.matches("\\d{1,2}-\\d{1,2}(\\(\\d+\\))?")) {
+                data.scores.add(line);
+            }
+            // Numeri (potrebbero essere punteggi o altro)
+            else if (line.matches("\\d+")) {
+                allNumbers.add(line);
+                System.out.println("  [NUM] " + line);
+            }
+            // Nomi giocatori
+            else {
+                data.players.add(line);
+                System.out.println("  [PLAYER] " + line);
+            }
+        }
+
+        System.out.println("  [STATUS] " + data.status);
+        System.out.println("  [TIME] " + data.time);
+        System.out.println("  [NUMBERS] " + allNumbers);
+
+        // Ricostruisci i punteggi dai numeri se non già formattati
+        if (data.scores.isEmpty() && !allNumbers.isEmpty()) {
+            boolean isLive = data.status.equals("LIVE");
+            data.scores = parseScoreNumbers(allNumbers, isLive);
+        }
+
+        return data;
+    }
+
+    // ────────────── PARSING INTELLIGENTE PUNTEGGI ──────────────
+    private static List<String> parseScoreNumbers(List<String> allNumbers, boolean isLive) {
+        List<String> sets = new ArrayList<>();
+
+        // Converti ogni elemento della lista in numero intero
+        List<Integer> scores = new ArrayList<>();
+        for (String numStr : allNumbers) {
+            try {
+                int num = Integer.parseInt(numStr);
+                scores.add(num);
+            } catch (NumberFormatException e) {
+                // Ignora elementi non numerici
+                System.out.println("  [⚠️ NON-NUMERIC] Skipping: " + numStr);
+            }
+        }
+
+        System.out.println("  [NUMBERS] " + scores);
+
+        // Se LIVE, scarta le prime 4 cifre (punti del game corrente)
+        if (isLive && scores.size() >= 6) {
+            scores = scores.subList(4, scores.size());
+            System.out.println("  [NUMBERS AFTER LIVE CUT] " + scores);
+        }
+
+        // RIMUOVI GLI ULTIMI 2 NUMERI (punteggio totale set: es. 2-0)
+        if (scores.size() >= 2) {
+            scores = scores.subList(0, scores.size() - 2);
+            System.out.println("  [NUMBERS AFTER REMOVING SET TOTAL] " + scores);
+        }
+
+        // Se numero dispari di numeri, ignora l'ultimo numero (dato incompleto)
+        if (scores.size() % 2 != 0) {
+            scores = scores.subList(0, scores.size() - 1);
+        }
+
+        if (scores.isEmpty()) return sets;
+
+        // Dividi in due metà: prima metà = giocatore1, seconda metà = giocatore2
+        int numSets = scores.size() / 2;
+
+        System.out.println("  [NUM SETS] " + numSets);
+
+        // Ricostruisci i set: player1[i] vs player2[i]
+        for (int i = 0; i < numSets; i++) {
+            int score1 = scores.get(i);
+            int score2 = scores.get(i + numSets);
+
+            System.out.println("  [TRY SET " + (i+1) + "] " + score1 + "-" + score2);
+
+            // Validazione punteggio tennis
+            if (isValidTennisScore(score1, score2)) {
+                String setScore = score1 + "-" + score2;
+                sets.add(setScore);
+                System.out.println("  [✅ VALID SET] " + setScore);
+
+                // Se il set è 7-6, il PROSSIMO numero è il tiebreak
+                if ((score1 == 7 && score2 == 6) || (score1 == 6 && score2 == 7)) {
+                    if (i + 1 < numSets) {
+                        int nextNum = Math.min(scores.get(i + 1), scores.get(i + numSets + 1));
+                        sets.set(sets.size() - 1, setScore + "(" + nextNum + ")");
+                        System.out.println("  [🎾 TIEBREAK] Added (" + nextNum + ")");
+                        i++;
+                    }
+                }
+            } else {
+                System.out.println("  [❌ INVALID SET] " + score1 + "-" + score2 + " - stopping");
+                break;
+            }
+        }
+
+        return sets;
+    }
+
+    // ────────────── VALIDAZIONE PUNTEGGIO TENNIS ──────────────
+    private static boolean isValidTennisScore(int score1, int score2) {
+        // Punteggi validi nel tennis
+        // Normale: 6-0, 6-1, 6-2, 6-3, 6-4, 7-5, 7-6
+        // Tiebreak: 7-6, 6-7
+        if(score1 < 0 || score2 < 0)
+            return false;
+
+        // Casi validi
+        if (score1 == 6 && score2 <= 4) return true; // 6-0, 6-1, 6-2, 6-3, 6-4
+        if (score2 == 6 && score1 <= 4) return true; // 0-6, 1-6, 2-6, 3-6, 4-6
+        if (score1 == 7 && (score2 == 5 || score2 == 6)) return true; // 7-5, 7-6
+        if (score2 == 7 && (score1 == 5 || score1 == 6)) return true; // 5-7, 6-7
+        if (score1 == 10 && score2 <= 8) return true; //per Supertiebreak normali
+        if (score2 == 10 && score1 <= 8) return true;
+
+        return false;
+    }
+
+    // ────────────── CLASSE INTERNA AGGIORNATA ──────────────
+    private static class MatchTextData {
+        String time = "";
+        List<String> players = new ArrayList<>();
+        List<String> scores = new ArrayList<>(); // NUOVO: punteggi set
+        String status = "";
+
+        boolean isValid() { return players.size() >= 2; }
+        boolean hasValidStatus() {
+            if (status == null || status.isEmpty()) return false;
+            return status.equals("LIVE") || status.equals("FINE") || status.equals("A tavolino") ||
+                    status.equals("SRF") || status.equals("Annullata") || status.equals("Iniziato") ||
+                    status.equals("-") || status.contains("set");
+        }
     }
 
     // ────────────── UTILITY ──────────────
@@ -702,37 +958,6 @@ public class TennisService {
         return false;
     }
 
-    private static MatchTextData parseMatchText(String text) {
-        MatchTextData data = new MatchTextData();
-        String[] lines = text.split("\n");
-
-        for (String line : lines) {
-            line = line.trim();
-            if (line.isEmpty()) continue;
-
-            if (line.matches("\\d{1,2}:\\d{2}")) data.time = line;
-            else if (line.matches("LIVE|FINE|SRF|A tavolino|.*set|-|Annullata|Iniziato"))
-                data.status = line;
-            else if (line.matches("\\d+")) continue;
-            else data.players.add(line);
-        }
-        return data;
-    }
-
-    // ────────────── CLASSI INTERNE ──────────────
-    private static class MatchTextData {
-        String time = "";
-        List<String> players = new ArrayList<>();
-        String status = "";
-
-        boolean isValid() { return players.size() >= 2; }
-        boolean hasValidStatus() {
-            if (status == null || status.isEmpty()) return false;
-            return status.equals("LIVE") || status.equals("FINE") || status.equals("A tavolino") ||
-                    status.equals("SRF") || status.equals("Annullata") || status.equals("Iniziato") ||
-                    status.equals("-") || status.contains("set");
-        }
-    }
 
     private static class StopScraperException extends RuntimeException {
         public StopScraperException(String message) { super(message); }
