@@ -6,6 +6,16 @@ public class Player {
     private int ranking;
     private int punti;
     private int eta;
+    private String extraInfo; // Info complete da Wikipedia
+    private String imageUrl;  // URL immagine giocatore
+
+    // Nuovi campi per preferiti
+    private String altezza;
+    private String peso;
+    private String migliorRanking;
+    private String vittorieSconfitte;
+    private String titoli;
+    private boolean isTennisPlayer; // Flag per verificare se è tennista
 
     public Player(String nome, String paese, int ranking, int punti, int eta) {
         this.nome = nome;
@@ -13,9 +23,10 @@ public class Player {
         this.ranking = ranking;
         this.punti = punti;
         this.eta = eta;
+        this.isTennisPlayer = false; // Default false, sarà impostato dopo verifica
     }
 
-    // Getter methods
+    // Getters
     public String getNome() {
         return nome;
     }
@@ -36,7 +47,39 @@ public class Player {
         return eta;
     }
 
-    // Setter methods
+    public String getExtraInfo() {
+        return extraInfo;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public String getAltezza() {
+        return altezza;
+    }
+
+    public String getPeso() {
+        return peso;
+    }
+
+    public String getMigliorRanking() {
+        return migliorRanking;
+    }
+
+    public String getVittorieSconfitte() {
+        return vittorieSconfitte;
+    }
+
+    public String getTitoli() {
+        return titoli;
+    }
+
+    public boolean isTennisPlayer() {
+        return isTennisPlayer;
+    }
+
+    // Setters
     public void setNome(String nome) {
         this.nome = nome;
     }
@@ -57,9 +100,40 @@ public class Player {
         this.eta = eta;
     }
 
+    public void setExtraInfo(String extraInfo) {
+        this.extraInfo = extraInfo;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
+    public void setAltezza(String altezza) {
+        this.altezza = altezza;
+    }
+
+    public void setPeso(String peso) {
+        this.peso = peso;
+    }
+
+    public void setMigliorRanking(String migliorRanking) {
+        this.migliorRanking = migliorRanking;
+    }
+
+    public void setVittorieSconfitte(String vittorieSconfitte) {
+        this.vittorieSconfitte = vittorieSconfitte;
+    }
+
+    public void setTitoli(String titoli) {
+        this.titoli = titoli;
+    }
+
+    public void setTennisPlayer(boolean tennisPlayer) {
+        isTennisPlayer = tennisPlayer;
+    }
+
     @Override
     public String toString() {
-        return String.format("%s (%s) - Ranking: #%d, Punti: %d",
-                nome, paese, ranking, punti);
+        return String.format("%d. %s (%s) - %d punti", ranking, nome, paese, punti);
     }
 }

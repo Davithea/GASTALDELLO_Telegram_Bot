@@ -33,7 +33,6 @@ public class Main {
             System.out.println("✅ Tennis Bot avviato correttamente!");
             System.out.println("📱 Il bot è ora in ascolto...");
             System.out.println("📊 Classifiche: Wikipedia (scraping)");
-            System.out.println("⚡ Live: RapidAPI Tennis Live Data");
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 System.out.println("\n🛑 Arresto Tennis Bot...");

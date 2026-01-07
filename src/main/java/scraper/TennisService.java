@@ -2,266 +2,69 @@ package scraper;
 
 import model.Match;
 import model.Player;
-import model.RankingResult;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-
-import java.util.ArrayList;
-import java.util.List;
+import org.openqa.selenium.*;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * Tennis Service IBRIDO:
- * - SCRAPING Wikipedia per classifiche (stabile e affidabile)
- * - API RapidAPI per partite live e ricerca giocatori
+ * Tennis Service - Scraping completo
+ * - Wikipedia per classifiche
+ * - Wikipedia per ricerca giocatori
+ * - SofaScore per partite live (Selenium)
  */
 public class TennisService {
 
     private final OkHttpClient client;
     private final String rapidApiKey;
-    private static final String RAPID_API_HOST = "tennis-live-data.p.rapidapi.com";
 
     public TennisService(String rapidApiKey) {
-        this.client = new OkHttpClient();
+        this.client = new OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .build();
         this.rapidApiKey = rapidApiKey;
     }
 
     // ==================== CLASSIFICHE (SCRAPING WIKIPEDIA) ====================
 
-    /**
-     * Scraping classifiche ATP da Wikipedia
-     */
-    public List<Player> getTopRankings(int limit) {
+    public List<Player> getATPRankings(int limit) {
         return getRankings(limit, "ATP_rankings", "atp");
     }
 
-    /**
-     * Scraping classifiche WTA da Wikipedia
-     */
     public List<Player> getWTARankings(int limit) {
         return getRankings(limit, "WTA_rankings", "wta");
     }
 
-    /**
-     * Scraping classifiche ATP Doppio da Wikipedia
-     */
-    public List<Player> getATPDoublesRankings(int limit) {
-        return getDoublesRankings(limit, "atp");
+    public List<Player> getRaceRankings(int limit) {
+        return getRankings(limit, "ATP_rankings", "race");
     }
 
-    /**
-     * Scraping classifiche WTA Doppio da Wikipedia
-     */
-    public List<Player> getWTADoublesRankings(int limit) {
-        return getDoublesRankings(limit, "wta");
+    public List<Player> getATPDoubleRankings(int limit) {
+        return getRankings(limit, "ATP_rankings", "atp_doppio");
     }
 
-    private RankingResult getRaceAndRanking(int limit, String wikiPage, String type) {
-
-        List<Player> race = new ArrayList<>();
-        List<Player> ranking = new ArrayList<>();
-
-        System.out.println("🌐 Scraping Race + Ranking " + type.toUpperCase());
-
-        try {
-            String url = "https://en.wikipedia.org/wiki/" + wikiPage;
-
-            Request request = new Request.Builder()
-                    .url(url)
-                    .addHeader("User-Agent", "Mozilla/5.0")
-                    .build();
-
-            try (Response response = client.newCall(request).execute()) {
-                if (!response.isSuccessful() || response.body() == null)
-                    return new RankingResult(race, ranking);
-
-                Document doc = Jsoup.parse(response.body().string());
-                Elements tables = doc.select("table.wikitable");
-
-                int found = 0;
-
-                for (Element table : tables) {
-
-                    String header = table.select("th").text().toLowerCase();
-
-                    // ranking singolare (Race o Ranking)
-                    if (!(header.contains("rank") &&
-                            header.contains("player") &&
-                            header.contains("points"))) {
-                        continue;
-                    }
-
-                    found++;
-
-                    List<Player> target =
-                            (found == 1) ? race :
-                                    (found == 2) ? ranking :
-                                            null;
-
-                    if (target == null) break;
-
-                    System.out.println(found == 1
-                            ? "🏁 Race " + type.toUpperCase()
-                            : "🏆 Ranking " + type.toUpperCase());
-
-                    Elements rows = table.select("tbody tr");
-
-                    for (Element row : rows) {
-                        if (target.size() >= limit) break;
-
-                        Elements cells = row.select("td");
-                        if (cells.size() < 3) continue;
-
-                        try {
-                            int rank = Integer.parseInt(
-                                    cells.get(0).text().replaceAll("[^0-9]", "")
-                            );
-
-                            String name = cells.get(1).text().trim();
-                            if (name.split("\\s+").length < 2) continue;
-
-                            int points = 0;
-                            for (int i = 2; i < cells.size(); i++) {
-                                String p = cells.get(i).text().replaceAll("[^0-9]", "");
-                                if (p.length() >= 3) {
-                                    points = Integer.parseInt(p);
-                                    break;
-                                }
-                            }
-
-                            String country = "Unknown";
-                            Elements imgs = row.select("img");
-                            if (!imgs.isEmpty()) {
-                                country = cleanCountryName(imgs.first().attr("alt"));
-                            }
-
-                            target.add(new Player(name, country, rank, points, 0));
-
-                        } catch (Exception ignored) {}
-                    }
-
-                    if (found == 2) break;
-                }
-            }
-
-        } catch (Exception e) {
-            System.out.println("❌ Errore scraping ranking: " + e.getMessage());
-        }
-
-        return new RankingResult(race, ranking);
+    public List<Player> getWTADoubleRankings(int limit) {
+        return getRankings(limit, "WTA_rankings", "wta_doppio");
     }
 
-
-    /**
-     * Metodo generico per classifiche singolare (SCRAPING)
-     */
     private List<Player> getRankings(int limit, String wikiPage, String type) {
         List<Player> players = new ArrayList<>();
 
-        System.out.println("🌐 Scraping classifiche " + type.toUpperCase() + " (robusto)");
+        System.out.println("🌐 Scraping classifiche " + type.toUpperCase() + " da Wikipedia...");
 
         try {
             String url = "https://en.wikipedia.org/wiki/" + wikiPage;
-
-            Request request = new Request.Builder()
-                    .url(url)
-                    .addHeader("User-Agent", "Mozilla/5.0")
-                    .build();
-
-            try (Response response = client.newCall(request).execute()) {
-                if (!response.isSuccessful() || response.body() == null) return players;
-
-                Document doc = Jsoup.parse(response.body().string());
-                Elements tables = doc.select("table.wikitable");
-
-                for (Element table : tables) {
-
-                    String header = table.select("th").text().toLowerCase();
-
-                    // 🔍 filtro forte: SOLO ranking singolare
-                    if (!(header.contains("rank") &&
-                            header.contains("player") &&
-                            header.contains("points"))) {
-                        continue;
-                    }
-
-                    Elements rows = table.select("tbody tr");
-                    int validRows = 0;
-
-                    for (Element row : rows) {
-                        Elements cells = row.select("td");
-                        if (cells.size() < 4) continue;
-
-                        try {
-                            // Rank
-                            String rankText = cells.get(0).text().replaceAll("[^0-9]", "");
-                            if (rankText.isEmpty()) continue;
-                            int ranking = Integer.parseInt(rankText);
-
-                            // Nome (almeno nome + cognome)
-                            String name = cells.get(1).text().trim();
-                            if (name.split("\\s+").length < 2) continue;
-
-                            // Points
-                            int points = 0;
-                            for (int i = 2; i < cells.size(); i++) {
-                                String p = cells.get(i).text().replaceAll("[^0-9]", "");
-                                if (p.length() >= 3) {
-                                    points = Integer.parseInt(p);
-                                    break;
-                                }
-                            }
-
-                            // Country
-                            String country = "Unknown";
-                            Elements imgs = row.select("img");
-                            if (!imgs.isEmpty()) {
-                                country = cleanCountryName(imgs.first().attr("alt"));
-                            }
-
-                            players.add(new Player(name, country, ranking, points, 0));
-                            validRows++;
-
-                            if (players.size() >= limit) break;
-
-                        } catch (Exception ignored) {}
-                    }
-
-                    // ✅ se troviamo abbastanza righe valide, è la tabella giusta
-                    if (validRows >= 10) {
-                        System.out.println("✅ Tabella ranking corretta trovata");
-                        break;
-                    } else {
-                        players.clear(); // era una tabella finta
-                    }
-                }
-            }
-
-        } catch (Exception e) {
-            System.out.println("❌ Errore scraping ranking: " + e.getMessage());
-        }
-
-        System.out.println("✅ " + players.size() + " giocatori estratti");
-        return players;
-    }
-
-
-    /**
-     * Metodo generico per classifiche doppio (SCRAPING)
-     */
-    private List<Player> getDoublesRankings(int limit, String type) {
-        List<Player> players = new ArrayList<>();
-
-        System.out.println("🌐 Scraping classifiche DOPPIO " + type.toUpperCase() + "...");
-
-        try {
-            String url = "https://en.wikipedia.org/wiki/" + type.toUpperCase() + "_rankings";
 
             Request request = new Request.Builder()
                     .url(url)
@@ -278,35 +81,50 @@ public class TennisService {
 
                 Elements allTables = doc.select("table.wikitable");
 
-                for (Element table : allTables) {
-                    String caption = table.select("caption").text().toLowerCase();
-                    String headerText = table.select("th").text().toLowerCase();
+                int tableIndex = switch (type) {
+                    case "race", "wta_doppio" -> 1;
+                    case "atp" -> 2;
+                    case "atp_doppio" -> 4;
+                    default -> 0;
+                };
 
-                    if (caption.contains("doubles") || headerText.contains("doubles")) {
+                int currentTableIndex = 0;
+                for (Element table : allTables) {
+                    Elements headers = table.select("th");
+                    String headerText = headers.text().toLowerCase();
+
+                    if (headerText.contains("rank") || headerText.contains("player")) {
+                        if (type.equals("atp") || type.equals("atp_doppio") || type.equals("wta_doppio") && currentTableIndex < tableIndex) {
+                            currentTableIndex++;
+                            continue;
+                        }
+
+                        System.out.println("✅ Usando tabella: " + table.select("caption").text());
+
                         Elements rows = table.select("tbody tr");
 
                         for (Element row : rows) {
                             if (players.size() >= limit) break;
 
                             Elements cells = row.select("td");
-                            if (cells.size() < 2) continue;
+                            if (cells.size() < 3) continue;
 
                             try {
                                 String rankText = cells.get(0).text().replaceAll("[^0-9]", "");
                                 if (rankText.isEmpty()) continue;
                                 int ranking = Integer.parseInt(rankText);
 
-                                String teamName = "";
-                                for (int i = 1; i < Math.min(cells.size(), 5); i++) {
+                                String name = "";
+                                for (int i = 1; i < Math.min(cells.size(), 4); i++) {
                                     String cellText = cells.get(i).text().trim();
-                                    if (cellText.contains("/") ||
-                                            (cellText.split("\\s+").length >= 4 && !cellText.matches(".*\\d{3,}.*"))) {
-                                        teamName = cellText;
+                                    if (cellText.split("\\s+").length >= 2 &&
+                                            !cellText.matches("^[0-9,]+$")) {
+                                        name = cellText;
                                         break;
                                     }
                                 }
 
-                                if (teamName.isEmpty()) continue;
+                                if (name.isEmpty()) continue;
 
                                 int points = 0;
                                 for (int i = 2; i < cells.size(); i++) {
@@ -317,21 +135,22 @@ public class TennisService {
                                     }
                                 }
 
-                                Elements imgs = row.select("img");
                                 String country = "Unknown";
-
-                                if (imgs.size() >= 2) {
-                                    String country1 = cleanCountryName(imgs.get(0).attr("alt"));
-                                    String country2 = cleanCountryName(imgs.get(1).attr("alt"));
-                                    country = country1 + " / " + country2;
-                                } else if (imgs.size() == 1) {
-                                    country = cleanCountryName(imgs.get(0).attr("alt"));
+                                for (Element cell : cells) {
+                                    Elements imgs = cell.select("img");
+                                    if (!imgs.isEmpty()) {
+                                        String alt = imgs.first().attr("alt");
+                                        if (!alt.isEmpty() && alt.length() < 50) {
+                                            country = cleanCountryName(alt);
+                                            break;
+                                        }
+                                    }
                                 }
 
-                                players.add(new Player(teamName, country, ranking, points, 0));
+                                players.add(new Player(name, country, ranking, points, 0));
 
                             } catch (Exception e) {
-                                continue;
+                                // Salta riga
                             }
                         }
 
@@ -339,11 +158,11 @@ public class TennisService {
                     }
                 }
 
-                System.out.println("✅ " + players.size() + " team estratti");
+                System.out.println("✅ " + players.size() + " giocatori estratti");
             }
 
         } catch (Exception e) {
-            System.out.println("❌ Errore: " + e.getMessage());
+            System.out.println("❌ Errore scraping: " + e.getMessage());
         }
 
         return players;
@@ -351,215 +170,571 @@ public class TennisService {
 
     private String cleanCountryName(String country) {
         if (country == null || country.isEmpty()) return "Unknown";
-
-        country = country.replaceAll("(?i)flag of ", "")
+        return country.replaceAll("(?i)flag of ", "")
                 .replaceAll("(?i)flag icon ", "")
                 .replaceAll("(?i)the ", "")
                 .trim();
-
-        return country;
     }
 
-    // ==================== PARTITE LIVE & RICERCA (API) ====================
+    // ==================== RICERCA GIOCATORE (SCRAPING WIKIPEDIA) ====================
 
-    /**
-     * Partite live da RapidAPI Tennis Live Data
-     */
-    public List<Match> getRecentMatches() {
-        List<Match> matches = new ArrayList<>();
-
-        System.out.println("🌐 Recupero partite live da RapidAPI...");
+    public Player searchPlayerAPI(String playerName) {
+        System.out.println("🔍 Cercando pagina Wikipedia per: " + playerName);
 
         try {
-            // Endpoint per partite live
-            String url = "https://tennis-live-data.p.rapidapi.com/matches-by-date/2024-12-22";
+            String wikiName = formatWikipediaName(playerName);
+            String url = "https://it.wikipedia.org/wiki/" + wikiName;
+
+            System.out.println("📄 URL Wikipedia: " + url);
 
             Request request = new Request.Builder()
                     .url(url)
-                    .addHeader("X-RapidAPI-Key", rapidApiKey)
-                    .addHeader("X-RapidAPI-Host", RAPID_API_HOST)
+                    .addHeader("User-Agent", "Mozilla/5.0")
                     .build();
 
             try (Response response = client.newCall(request).execute()) {
-                if (!response.isSuccessful() || response.body() == null) {
-                    System.out.println("❌ Errore API: " + response.code());
-                    return matches;
+                if (!response.isSuccessful()) {
+                    System.out.println("❌ Pagina non trovata: " + response.code());
+                    System.out.println("🔄 Tentativo ricerca nelle classifiche...");
+                    return searchInRankings(playerName);
                 }
 
-                String jsonResponse = response.body().string();
-                JSONObject json = new JSONObject(jsonResponse);
+                String html = response.body().string();
+                Document doc = Jsoup.parse(html);
 
-                if (json.has("results")) {
-                    JSONArray results = json.getJSONArray("results");
+                if (!isTennisPlayer(doc)) {
+                    System.out.println("⚠️ Non è un giocatore di tennis");
+                    return null;
+                }
 
-                    for (int i = 0; i < results.length(); i++) {
-                        JSONObject matchData = results.getJSONObject(i);
+                Player player = extractPlayerInfo(doc, playerName);
 
-                        // Solo partite in corso
-                        String status = matchData.optString("status", "");
-                        if (!status.equalsIgnoreCase("inprogress")) continue;
-
-                        String tournament = matchData.optString("tournament", "Unknown");
-                        String homePlayer = matchData.optJSONObject("home_player") != null
-                                ? matchData.getJSONObject("home_player").optString("full_name", "Unknown")
-                                : "Unknown";
-                        String awayPlayer = matchData.optJSONObject("away_player") != null
-                                ? matchData.getJSONObject("away_player").optString("full_name", "Unknown")
-                                : "Unknown";
-
-                        String score = matchData.optString("home_score", "0") + " - " +
-                                matchData.optString("away_score", "0");
-
-                        int priority = getTournamentPriority(tournament);
-                        matches.add(new Match(tournament, homePlayer, awayPlayer, score, "", priority));
-                    }
-
-                    System.out.println("✅ " + matches.size() + " partite live trovate");
+                if (player != null) {
+                    System.out.println("✅ Giocatore trovato: " + player.getNome());
+                    return player;
                 } else {
-                    System.out.println("ℹ️  Nessuna partita live al momento");
+                    System.out.println("❌ Impossibile estrarre dati giocatore");
+                    return null;
                 }
             }
 
         } catch (Exception e) {
-            System.out.println("❌ Errore API: " + e.getMessage());
-            e.printStackTrace();
+            System.out.println("❌ Errore ricerca: " + e.getMessage());
+            return searchInRankings(playerName);
         }
-
-        return matches;
     }
 
-    /**
-     * Cerca giocatore (prima nelle classifiche, poi via API)
-     */
-    public Player searchPlayer(String name) {
-        System.out.println("🔍 Cercando: " + name);
+    private String formatWikipediaName(String name) {
+        String[] words = name.trim().split("\\s+");
+        StringBuilder formatted = new StringBuilder();
 
-        // Prima cerca nelle classifiche ATP/WTA
-        List<Player> atpRankings = getTopRankings(100);
-        for (Player player : atpRankings) {
-            if (player.getNome().toLowerCase().contains(name.toLowerCase())) {
+        for (int i = 0; i < words.length; i++) {
+            String word = words[i];
+            if (word.length() > 0) {
+                formatted.append(Character.toUpperCase(word.charAt(0)));
+                formatted.append(word.substring(1).toLowerCase());
+
+                if (i < words.length - 1) {
+                    formatted.append("_");
+                }
+            }
+        }
+
+        return formatted.toString();
+    }
+
+    private boolean isTennisPlayer(Document doc) {
+        String pageText = doc.text().toLowerCase();
+
+        boolean hasTennisKeyword = pageText.contains("tennis") ||
+                pageText.contains("atp") ||
+                pageText.contains("wta") ||
+                pageText.contains("grand slam") ||
+                pageText.contains("australian open") ||
+                pageText.contains("wimbledon") ||
+                pageText.contains("us open") ||
+                pageText.contains("roland garros");
+
+        Elements infobox = doc.select("table.infobox");
+        if (!infobox.isEmpty()) {
+            String infoboxText = infobox.text().toLowerCase();
+            if (infoboxText.contains("tennis") ||
+                    infoboxText.contains("sport") && infoboxText.contains("tennis")) {
+                return true;
+            }
+        }
+
+        return hasTennisKeyword;
+    }
+
+    private Player extractPlayerInfo(Document doc, String searchName) {
+        try {
+            Elements infobox = doc.select("table.infobox");
+
+            if (infobox.isEmpty()) {
+                System.out.println("⚠️ Infobox non trovato");
+                return null;
+            }
+
+            Element table = infobox.first();
+
+            String nome = extractFromTable(table, searchName);
+            String nazionalita = extractNationality(table);
+            String altezza = cleanText(extractFromTableRow(table, "Altezza"));
+            String peso = cleanText(extractFromTableRow(table, "Peso"));
+            String datanascita = extractBirthDate(table);
+            int ranking = extractRanking(table);
+            String migliorRanking = cleanText(extractFromTableRow(table, "Miglior ranking"));
+            String vittorie = cleanText(extractFromTableRow(table, "Vittorie/sconfitte"));
+            String titoliSingolo = cleanText(extractFromTableRow(table, "Titoli vinti"));
+            String grandslamVinti = extractGrandSlams(table);
+            String manoPreferita = cleanText(extractFromTableRow(table, "Mano"));
+            String allenatore = cleanText(extractFromTableRow(table, "Allenatore"));
+            String premiMonetari = cleanText(extractFromTableRow(table, "Montepremi", "Palmares"));
+
+            String imageUrl = extractImageUrl(table);
+            int eta = calculateAge(datanascita);
+
+            StringBuilder info = new StringBuilder();
+            info.append("🎾 ").append(nome.toUpperCase()).append("\n\n");
+
+            if (imageUrl != null && !imageUrl.isEmpty()) {
+                info.append("📷 Foto: ").append(imageUrl).append("\n\n");
+            }
+
+            info.append("🌍 Nazionalità: ").append(nazionalita).append("\n");
+
+            if (datanascita != null && !datanascita.isEmpty()) {
+                info.append("📅 Data di nascita: ").append(datanascita);
+                if (eta > 0) {
+                    info.append(" (").append(eta).append(" anni)");
+                }
+                info.append("\n");
+            }
+
+            if (altezza != null && !altezza.isEmpty()) {
+                info.append("📏 Altezza: ").append(altezza).append("\n");
+            }
+
+            if (peso != null && !peso.isEmpty()) {
+                info.append("⚖️ Peso: ").append(peso).append("\n");
+            }
+
+            if (manoPreferita != null && !manoPreferita.isEmpty()) {
+                info.append("✋ Mano: ").append(manoPreferita).append("\n");
+            }
+
+            info.append("\n📊 CARRIERA\n\n");
+
+            if (ranking > 0) {
+                info.append("🏆 Ranking attuale: #").append(ranking).append("\n");
+            }
+
+            if (migliorRanking != null && !migliorRanking.isEmpty()) {
+                info.append("⭐ Miglior ranking: ").append(migliorRanking).append("\n");
+            }
+
+            if (vittorie != null && !vittorie.isEmpty()) {
+                info.append("📈 Vittorie/Sconfitte: ").append(vittorie).append("\n");
+            }
+
+            if (titoliSingolo != null && !titoliSingolo.isEmpty()) {
+                info.append("🏅 Titoli: ").append(titoliSingolo).append("\n");
+            }
+
+            if (grandslamVinti != null && !grandslamVinti.isEmpty()) {
+                info.append("\n🏆 GRAND SLAM\n\n");
+                info.append(grandslamVinti).append("\n");
+            }
+
+            if (allenatore != null && !allenatore.isEmpty()) {
+                info.append("\n👨‍🏫 Allenatore: ").append(allenatore).append("\n");
+            }
+
+            if (premiMonetari != null && !premiMonetari.isEmpty()) {
+                info.append("💰 Montepremi: ").append(premiMonetari).append("\n");
+            }
+
+            Player player = new Player(nome, nazionalita, ranking, 0, eta);
+            player.setExtraInfo(info.toString());
+            player.setImageUrl(imageUrl);
+            player.setTennisPlayer(true);
+
+            player.setAltezza(altezza);
+            player.setPeso(peso);
+            player.setMigliorRanking(migliorRanking);
+            player.setVittorieSconfitte(vittorie);
+            player.setTitoli(titoliSingolo);
+
+            return player;
+
+        } catch (Exception e) {
+            System.out.println("❌ Errore estrazione dati: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private String cleanText(String text) {
+        if (text == null) return null;
+        text = text.replaceAll("\\[\\d+\\]", "");
+        text = text.replaceAll("\\[nota \\d+\\]", "");
+        text = text.replaceAll("\\s+", " ");
+        return text.trim();
+    }
+
+    private String extractBirthDate(Element table) {
+        Elements rows = table.select("tr");
+
+        for (Element row : rows) {
+            Elements th = row.select("th, td.infobox-label");
+
+            if (th.isEmpty()) continue;
+
+            String header = th.first().text().toLowerCase();
+
+            if ((header.contains("data di nascita") ||
+                    (header.contains("nato") && !header.contains("nazionalità")))) {
+
+                Elements td = row.select("td");
+                if (!td.isEmpty()) {
+                    return cleanText(td.first().text().trim());
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private String extractFromTable(Element table, String defaultName) {
+        Elements title = table.select("th.infobox-title, caption");
+        if (!title.isEmpty()) {
+            String name = title.first().text().trim();
+            if (!name.isEmpty()) {
+                return name;
+            }
+        }
+        return defaultName;
+    }
+
+    private String extractNationality(Element table) {
+        Elements rows = table.select("tr");
+
+        for (Element row : rows) {
+            if (row.text().toLowerCase().contains("nazionalità")) {
+                Elements links = row.select("a");
+                for (Element link : links) {
+                    String text = link.text().trim();
+                    if (!text.isEmpty() && !text.equalsIgnoreCase("nazionalità")) {
+                        return text;
+                    }
+                }
+
+                String cellText = row.select("td").text().trim();
+                if (!cellText.isEmpty() && !cellText.equalsIgnoreCase("nazionalità")) {
+                    return cellText;
+                }
+            }
+        }
+
+        return "Unknown";
+    }
+
+    private String extractFromTableRow(Element table, String... keywords) {
+        Elements rows = table.select("tr");
+
+        for (Element row : rows) {
+            Elements th = row.select("th, td.infobox-label");
+
+            if (th.isEmpty()) continue;
+
+            String header = th.first().text().toLowerCase();
+
+            for (String keyword : keywords) {
+                if (header.contains(keyword.toLowerCase())) {
+                    Elements td = row.select("td");
+                    if (!td.isEmpty()) {
+                        return td.first().text().trim();
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private int extractRanking(Element table) {
+        String rankingText = extractFromTableRow(table, "Ranking attuale");
+
+        if (rankingText != null) {
+            rankingText = cleanText(rankingText);
+
+            Pattern pattern = Pattern.compile("(\\d{1,3})(?:º|°|\\s|\\(|$)");
+            Matcher matcher = pattern.matcher(rankingText);
+
+            if (matcher.find()) {
+                try {
+                    return Integer.parseInt(matcher.group(1));
+                } catch (Exception e) {
+                    return 0;
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    private String extractGrandSlams(Element table) {
+        Map<String, StringBuilder> grandSlamResults = new LinkedHashMap<>();
+        grandSlamResults.put("Singolare", new StringBuilder());
+        grandSlamResults.put("Doppio", new StringBuilder());
+        grandSlamResults.put("Doppio Misto", new StringBuilder());
+
+        Elements rows = table.select("tr");
+        String currentCategory = null;
+
+        for (Element row : rows) {
+            String rowText = row.text().toLowerCase();
+
+            if (rowText.contains("singolare")) {
+                currentCategory = "Singolare";
+                continue;
+            } else if (rowText.contains("doppio misto")) {
+                currentCategory = "Doppio Misto";
+                continue;
+            } else if (rowText.contains("doppio")) {
+                currentCategory = "Doppio";
+                continue;
+            }
+
+            if (currentCategory == null) continue;
+
+            Elements cells = row.select("th, td");
+            if (cells.size() < 2) continue;
+
+            String tournament = cells.get(0).text();
+            String result = cleanText(cells.get(1).text());
+            StringBuilder sb = grandSlamResults.get(currentCategory);
+
+            if (tournament.contains("Australian")) {
+                sb.append("🇦🇺 Australian Open: ").append(result).append("\n");
+            } else if (tournament.contains("Roland") || tournament.contains("France")) {
+                sb.append("🇫🇷 Roland Garros: ").append(result).append("\n");
+            } else if (tournament.contains("Wimbledon")) {
+                sb.append("🇬🇧 Wimbledon: ").append(result).append("\n");
+            } else if (tournament.contains("US") || tournament.contains("U.S.")) {
+                sb.append("🇺🇸 US Open: ").append(result).append("\n");
+            }
+        }
+
+        StringBuilder finalResult = new StringBuilder();
+        for (Map.Entry<String, StringBuilder> entry : grandSlamResults.entrySet()) {
+            if (entry.getValue().length() > 0) {
+                finalResult.append(entry.getKey()).append(":\n");
+                finalResult.append(entry.getValue()).append("\n");
+            }
+        }
+
+        return finalResult.length() > 0 ? finalResult.toString().trim() : null;
+    }
+
+    private String extractImageUrl(Element table) {
+        Elements images = table.select("img");
+
+        for (Element img : images) {
+            String src = img.attr("src");
+
+            if (src.contains("Flag_of") || src.contains("icon") ||
+                    src.contains("logo") || src.length() < 20) {
+                continue;
+            }
+
+            if (src.startsWith("//")) {
+                return "https:" + src;
+            } else if (src.startsWith("/")) {
+                return "https://it.wikipedia.org" + src;
+            } else if (src.startsWith("http")) {
+                return src;
+            }
+        }
+
+        return null;
+    }
+
+    private int calculateAge(String birthDate) {
+        if (birthDate == null || birthDate.isEmpty()) return 0;
+
+        try {
+            Pattern pattern = Pattern.compile("(\\d{1,2})\\s+\\w+\\s+(\\d{4})");
+            Matcher matcher = pattern.matcher(birthDate);
+
+            if (matcher.find()) {
+                int year = Integer.parseInt(matcher.group(2));
+                int currentYear = java.time.Year.now().getValue();
+                return currentYear - year;
+            }
+        } catch (Exception e) {
+            // Ignora errori
+        }
+
+        return 0;
+    }
+
+    private Player searchInRankings(String playerName) {
+        System.out.println("🔄 Ricerca fallback nelle classifiche...");
+
+        List<Player> atpPlayers = getATPRankings(100);
+        for (Player player : atpPlayers) {
+            if (player.getNome().toLowerCase().contains(playerName.toLowerCase())) {
                 System.out.println("✅ Trovato in ATP rankings");
                 return player;
             }
         }
 
-        List<Player> wtaRankings = getWTARankings(100);
-        for (Player player : wtaRankings) {
-            if (player.getNome().toLowerCase().contains(name.toLowerCase())) {
+        List<Player> wtaPlayers = getWTARankings(100);
+        for (Player player : wtaPlayers) {
+            if (player.getNome().toLowerCase().contains(playerName.toLowerCase())) {
                 System.out.println("✅ Trovato in WTA rankings");
                 return player;
             }
         }
 
-        System.out.println("❌ Giocatore non trovato nelle top 100");
         return null;
     }
 
-    private int getTournamentPriority(String tournament) {
-        String lower = tournament.toLowerCase();
-        if (lower.contains("australian open") || lower.contains("roland garros") ||
-                lower.contains("french open") || lower.contains("wimbledon") ||
-                lower.contains("us open")) return 1;
-        if (lower.contains("masters") || lower.contains("finals")) return 2;
-        if (lower.contains("500")) return 3;
-        if (lower.contains("250")) return 4;
-        if (lower.contains("challenger")) return 5;
-        return 6;
+    // ==================== HEAD TO HEAD ====================
+
+    public String getH2H(String player1, String player2) {
+        System.out.println("📊 H2H: " + player1 + " vs " + player2);
+
+        return "⚔️ HEAD TO HEAD\n\n" +
+                player1 + " vs " + player2 + "\n\n" +
+                "ℹ️ Statistiche H2H non disponibili con scraping.\n\n" +
+                "💡 Consulta:\n" +
+                "- https://www.atptour.com/\n" +
+                "- https://www.wtatennis.com/\n" +
+                "- https://www.ultimatetennisstatistics.com/";
+    }
+
+    // ────────────── PARTITE LIVE ──────────────
+    public List<Match> getRecentMatches() {
+        List<Match> matches = new ArrayList<>();
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless"); // senza GUI
+        options.addArguments("--disable-blink-features=AutomationControlled");
+        options.addArguments("--window-size=1920,1080");
+
+        WebDriver driver = new ChromeDriver(options);
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+
+        Set<String> processedTexts = new HashSet<>();
+        String currentTournament = "Generale";
+
+        try {
+            driver.get("https://www.sofascore.com/it/tennis");
+            Thread.sleep(2000);
+
+            int maxScrolls = 180;
+
+            for (int scroll = 0; scroll < maxScrolls; scroll++) {
+                List<WebElement> elements = driver.findElements(By.cssSelector("a[href^='/it/tennis/']"));
+
+                for (WebElement el : elements) {
+                    try {
+                        String text = el.getText().trim();
+                        if (text.isEmpty()) continue;
+                        if (!processedTexts.add(text)) continue;
+
+                        if (isTournamentTitle(text)) {
+                            currentTournament = text;
+                            continue;
+                        }
+
+                        if (!text.contains("\n")) continue;
+
+                        MatchTextData data = parseMatchText(text);
+                        if (!data.isValid() || data.time.isEmpty() || !data.hasValidStatus()) continue;
+
+                        matches.add(new Match(
+                                currentTournament,
+                                data.players.get(0),
+                                data.players.get(1),
+                                data.status + " " + data.time,
+                                data.time,
+                                0
+                        ));
+
+                    } catch (StaleElementReferenceException ignored) {}
+                }
+
+                js.executeScript("window.scrollBy(0, 400);");
+                Thread.sleep(50);
+            }
+
+        } catch (StopScraperException e) {
+            System.out.println("⛔ " + e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            driver.quit();
+        }
+
+        return matches;
+    }
+
+    // ────────────── UTILITY ──────────────
+    private static boolean isTournamentTitle(String text) {
+        String upper = text.toUpperCase();
+
+        if (upper.contains("ATP 125") || upper.contains("WTA 250") ||
+                upper.contains("ITF") || upper.contains("CHALLENGER")) {
+            throw new StopScraperException("Torneo non interessante: " + text);
+        }
+
+        String[] allowedTournaments = {
+                "Grand Slam", "Masters 1000", "ATP 250", "ATP 500",
+                "WTA 500", "WTA 1000", "United Cup"
+        };
+
+        for (String t : allowedTournaments) {
+            if (text.equals(t) || text.startsWith(t)) return true;
+        }
+        return false;
+    }
+
+    private static MatchTextData parseMatchText(String text) {
+        MatchTextData data = new MatchTextData();
+        String[] lines = text.split("\n");
+
+        for (String line : lines) {
+            line = line.trim();
+            if (line.isEmpty()) continue;
+
+            if (line.matches("\\d{1,2}:\\d{2}")) data.time = line;
+            else if (line.matches("LIVE|FINE|SRF|A tavolino|.*set|-|Annullata|Iniziato"))
+                data.status = line;
+            else if (line.matches("\\d+")) continue;
+            else data.players.add(line);
+        }
+        return data;
+    }
+
+    // ────────────── CLASSI INTERNE ──────────────
+    private static class MatchTextData {
+        String time = "";
+        List<String> players = new ArrayList<>();
+        String status = "";
+
+        boolean isValid() { return players.size() >= 2; }
+        boolean hasValidStatus() {
+            if (status == null || status.isEmpty()) return false;
+            return status.equals("LIVE") || status.equals("FINE") || status.equals("A tavolino") ||
+                    status.equals("SRF") || status.equals("Annullata") || status.equals("Iniziato") ||
+                    status.equals("-") || status.contains("set");
+        }
+    }
+
+    private static class StopScraperException extends RuntimeException {
+        public StopScraperException(String message) { super(message); }
     }
 }
-
-
-//private RankingResult getRaceAndRanking(int limit, String wikiPage, String type) {
-//
-//        List<Player> race = new ArrayList<>();
-//        List<Player> ranking = new ArrayList<>();
-//
-//        System.out.println("🌐 Scraping Race + Ranking " + type.toUpperCase());
-//
-//        try {
-//            String url = "https://en.wikipedia.org/wiki/" + wikiPage;
-//
-//            Request request = new Request.Builder()
-//                    .url(url)
-//                    .addHeader("User-Agent", "Mozilla/5.0")
-//                    .build();
-//
-//            try (Response response = client.newCall(request).execute()) {
-//                if (!response.isSuccessful() || response.body() == null)
-//                    return new RankingResult(race, ranking);
-//
-//                Document doc = Jsoup.parse(response.body().string());
-//                Elements tables = doc.select("table.wikitable");
-//
-//                int found = 0;
-//
-//                for (Element table : tables) {
-//
-//                    String header = table.select("th").text().toLowerCase();
-//
-//                    // ranking singolare (Race o Ranking)
-//                    if (!(header.contains("rank") &&
-//                            header.contains("player") &&
-//                            header.contains("points"))) {
-//                        continue;
-//                    }
-//
-//                    found++;
-//
-//                    List<Player> target =
-//                            (found == 1) ? race :
-//                                    (found == 2) ? ranking :
-//                                            null;
-//
-//                    if (target == null) break;
-//
-//                    System.out.println(found == 1
-//                            ? "🏁 Race " + type.toUpperCase()
-//                            : "🏆 Ranking " + type.toUpperCase());
-//
-//                    Elements rows = table.select("tbody tr");
-//
-//                    for (Element row : rows) {
-//                        if (target.size() >= limit) break;
-//
-//                        Elements cells = row.select("td");
-//                        if (cells.size() < 3) continue;
-//
-//                        try {
-//                            int rank = Integer.parseInt(
-//                                    cells.get(0).text().replaceAll("[^0-9]", "")
-//                            );
-//
-//                            String name = cells.get(1).text().trim();
-//                            if (name.split("\\s+").length < 2) continue;
-//
-//                            int points = 0;
-//                            for (int i = 2; i < cells.size(); i++) {
-//                                String p = cells.get(i).text().replaceAll("[^0-9]", "");
-//                                if (p.length() >= 3) {
-//                                    points = Integer.parseInt(p);
-//                                    break;
-//                                }
-//                            }
-//
-//                            String country = "Unknown";
-//                            Elements imgs = row.select("img");
-//                            if (!imgs.isEmpty()) {
-//                                country = cleanCountryName(imgs.first().attr("alt"));
-//                            }
-//
-//                            target.add(new Player(name, country, rank, points, 0));
-//
-//                        } catch (Exception ignored) {}
-//                    }
-//
-//                    if (found == 2) break;
-//                }
-//            }
-//
-//        } catch (Exception e) {
-//            System.out.println("❌ Errore scraping ranking: " + e.getMessage());
-//        }
-//
-//        return new RankingResult(race, ranking);
-//    }

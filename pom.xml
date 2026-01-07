@@ -29,21 +29,42 @@
             <version>7.2.1</version>
         </dependency>
 
-        <!-- OkHttp per le chiamate HTTP -->
+        <!-- Selenium WebDriver (AGGIORNATO) -->
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-java</artifactId>
+            <version>4.18.1</version>
+        </dependency>
+
+        <!-- WebDriverManager - IMPORTANTE! Gestisce ChromeDriver automaticamente -->
+        <dependency>
+            <groupId>io.github.bonigarcia</groupId>
+            <artifactId>webdrivermanager</artifactId>
+            <version>5.6.3</version>
+        </dependency>
+
+        <!-- OkHttp per chiamate HTTP -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>
             <version>4.12.0</version>
         </dependency>
 
-        <!-- JSON parsing per RapidAPI -->
+        <!-- JSON parsing -->
         <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
             <version>20240303</version>
         </dependency>
 
-        <!-- Jsoup per web scraping (backup) -->
+        <!-- Jackson per JSON (usato da alcune librerie) -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.16.1</version>
+        </dependency>
+
+        <!-- Jsoup per web scraping -->
         <dependency>
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
@@ -57,7 +78,7 @@
             <version>3.45.1.0</version>
         </dependency>
 
-        <!-- Apache Commons Configuration per config.properties -->
+        <!-- Apache Commons Configuration -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-configuration2</artifactId>
@@ -70,7 +91,13 @@
             <version>1.9.4</version>
         </dependency>
 
-        <!-- SLF4J per logging -->
+        <!-- SLF4J per logging (richiesto da Selenium) -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.12</version>
+        </dependency>
+
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
@@ -108,6 +135,17 @@
                                     <mainClass>Main</mainClass>
                                 </transformer>
                             </transformers>
+                            <!-- Evita conflitti di servizi Selenium -->
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
                         </configuration>
                     </execution>
                 </executions>

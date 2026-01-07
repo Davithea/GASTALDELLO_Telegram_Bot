@@ -33,7 +33,7 @@ public class DatabaseManager {
                 )
             """);
 
-            // Tabella giocatori
+            // Tabella giocatori - AGGIORNATA con più campi
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS players (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,6 +42,12 @@ public class DatabaseManager {
                     ranking INTEGER,
                     points INTEGER,
                     age INTEGER,
+                    altezza TEXT,
+                    peso TEXT,
+                    miglior_ranking TEXT,
+                    vittorie_sconfitte TEXT,
+                    titoli TEXT,
+                    is_tennis_player INTEGER DEFAULT 0,
                     search_count INTEGER DEFAULT 0,
                     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -121,13 +127,20 @@ public class DatabaseManager {
 
     public void savePlayer(Player player) {
         String sql = """
-            INSERT INTO players (name, country, ranking, points, age, search_count) 
-            VALUES (?, ?, ?, ?, ?, 1)
+            INSERT INTO players (name, country, ranking, points, age, altezza, peso, 
+                                miglior_ranking, vittorie_sconfitte, titoli, is_tennis_player, search_count) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             ON CONFLICT(name) DO UPDATE SET 
                 country = excluded.country,
                 ranking = excluded.ranking,
                 points = excluded.points,
                 age = excluded.age,
+                altezza = excluded.altezza,
+                peso = excluded.peso,
+                miglior_ranking = excluded.miglior_ranking,
+                vittorie_sconfitte = excluded.vittorie_sconfitte,
+                titoli = excluded.titoli,
+                is_tennis_player = excluded.is_tennis_player,
                 search_count = search_count + 1,
                 last_updated = CURRENT_TIMESTAMP
         """;
@@ -138,6 +151,12 @@ public class DatabaseManager {
             pstmt.setInt(3, player.getRanking());
             pstmt.setInt(4, player.getPunti());
             pstmt.setInt(5, player.getEta());
+            pstmt.setString(6, player.getAltezza());
+            pstmt.setString(7, player.getPeso());
+            pstmt.setString(8, player.getMigliorRanking());
+            pstmt.setString(9, player.getVittorieSconfitte());
+            pstmt.setString(10, player.getTitoli());
+            pstmt.setInt(11, player.isTennisPlayer() ? 1 : 0);
             pstmt.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
@@ -182,13 +201,54 @@ public class DatabaseManager {
     // ==================== PREFERITI ====================
 
     public String addFavoritePlayer(Long chatId, String playerName) {
-        String sql = "INSERT INTO favorite_players (chat_id, player_name) VALUES (?, ?)";
+        // Verifica prima se il giocatore esiste ed è un tennista
+        String checkSql = "SELECT is_tennis_player, name, country, altezza, peso, miglior_ranking, vittorie_sconfitte, titoli FROM players WHERE name = ?";
 
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setLong(1, chatId);
-            pstmt.setString(2, playerName);
-            pstmt.executeUpdate();
-            return "⭐ " + playerName + " aggiunto ai preferiti!";
+        try (PreparedStatement checkStmt = connection.prepareStatement(checkSql)) {
+            checkStmt.setString(1, playerName);
+            ResultSet rs = checkStmt.executeQuery();
+
+            if (!rs.next()) {
+                return "❌ Giocatore \"" + playerName + "\" non trovato nel database.\n\n" +
+                        "💡 Prima cercalo con /cerca, poi aggiungilo ai preferiti!";
+            }
+
+            int isTennisPlayer = rs.getInt("is_tennis_player");
+            if (isTennisPlayer == 0) {
+                return "❌ \"" + playerName + "\" non è un giocatore di tennis.\n\n" +
+                        "⚠️ Solo giocatori di tennis possono essere aggiunti ai preferiti!";
+            }
+
+            // Giocatore valido, aggiungilo ai preferiti
+            String insertSql = "INSERT INTO favorite_players (chat_id, player_name) VALUES (?, ?)";
+
+            try (PreparedStatement insertStmt = connection.prepareStatement(insertSql)) {
+                insertStmt.setLong(1, chatId);
+                insertStmt.setString(2, playerName);
+                insertStmt.executeUpdate();
+
+                // Crea messaggio con info giocatore
+                StringBuilder info = new StringBuilder();
+                info.append("⭐ ").append(playerName).append(" aggiunto ai preferiti!\n\n");
+                info.append("📊 INFO GIOCATORE\n\n");
+
+                String country = rs.getString("country");
+                String altezza = rs.getString("altezza");
+                String peso = rs.getString("peso");
+                String migliorRanking = rs.getString("miglior_ranking");
+                String vittorieSconfitte = rs.getString("vittorie_sconfitte");
+                String titoli = rs.getString("titoli");
+
+                if (country != null) info.append("🌍 Nazionalità: ").append(country).append("\n");
+                if (altezza != null) info.append("📏 Altezza: ").append(altezza).append(" cm\n");
+                if (peso != null) info.append("⚖️ Peso: ").append(peso).append(" kg\n");
+                if (migliorRanking != null) info.append("⭐ Miglior ranking: ").append(migliorRanking).append("\n");
+                if (vittorieSconfitte != null) info.append("📈 V/S: ").append(vittorieSconfitte).append("\n");
+                if (titoli != null) info.append("🏅 Titoli: ").append(titoli).append("\n");
+
+                return info.toString();
+            }
+
         } catch (SQLException e) {
             if (e.getMessage().contains("UNIQUE constraint failed")) {
                 return "⚠️ " + playerName + " è già nei tuoi preferiti!";
@@ -220,7 +280,14 @@ public class DatabaseManager {
     public String getFavoritePlayers(Long chatId) {
         StringBuilder sb = new StringBuilder("⭐ I TUOI GIOCATORI PREFERITI\n\n");
 
-        String sql = "SELECT player_name, added_at FROM favorite_players WHERE chat_id = ? ORDER BY added_at DESC";
+        String sql = """
+            SELECT fp.player_name, fp.added_at, p.country, p.altezza, p.peso, 
+                   p.miglior_ranking, p.vittorie_sconfitte, p.titoli
+            FROM favorite_players fp
+            LEFT JOIN players p ON fp.player_name = p.name
+            WHERE fp.chat_id = ? 
+            ORDER BY fp.added_at DESC
+        """;
 
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
             pstmt.setLong(1, chatId);
@@ -231,21 +298,39 @@ public class DatabaseManager {
                 count++;
                 String name = rs.getString("player_name");
                 String addedAt = rs.getString("added_at");
+                String country = rs.getString("country");
+                String altezza = rs.getString("altezza");
+                String peso = rs.getString("peso");
+                String migliorRanking = rs.getString("miglior_ranking");
+                String vittorieSconfitte = rs.getString("vittorie_sconfitte");
+                String titoli = rs.getString("titoli");
 
                 sb.append(String.format("%d. %s\n", count, name));
-                sb.append(String.format("   Aggiunto: %s\n\n", addedAt.substring(0, 10)));
+                if (country != null) sb.append("   🌍 ").append(country).append("\n");
+                if (altezza != null && peso != null) {
+                    sb.append("   📏 ").append(altezza).append(" cm, ⚖️ ").append(peso).append(" kg\n");
+                }
+                if (migliorRanking != null) sb.append("   ⭐ Miglior ranking: ").append(migliorRanking).append("\n");
+                if (vittorieSconfitte != null) sb.append("   📈 V/S: ").append(vittorieSconfitte).append("\n");
+                if (titoli != null) sb.append("   🏅 Titoli: ").append(titoli).append("\n");
+                sb.append("   📅 Aggiunto: ").append(addedAt.substring(0, 10)).append("\n\n");
             }
 
             if (count == 0) {
                 return "⭐ NON HAI ANCORA GIOCATORI PREFERITI\n\n" +
-                        "Aggiungi i tuoi giocatori preferiti con:\n" +
-                        "/aggiungi [nome]\n\n" +
-                        "Esempio: /aggiungi Sinner";
+                        "Aggiungi i tuoi giocatori preferiti:\n" +
+                        "1. Cerca un giocatore con /cerca\n" +
+                        "2. Aggiungilo con /aggiungi\n\n" +
+                        "Esempio:\n" +
+                        "/cerca\n" +
+                        "→ Jannik Sinner\n" +
+                        "→ /aggiungi\n" +
+                        "→ Jannik Sinner";
             }
 
-            sb.append(String.format("Totale: %d giocatori\n\n", count));
-            sb.append("➕ Aggiungi: /aggiungi [nome]\n");
-            sb.append("➖ Rimuovi: /rimuovi [nome]");
+            sb.append(String.format("📊 Totale: %d giocatori\n\n", count));
+            sb.append("➕ Aggiungi: /aggiungi\n");
+            sb.append("➖ Rimuovi: /rimuovi");
 
         } catch (SQLException e) {
             e.printStackTrace();
