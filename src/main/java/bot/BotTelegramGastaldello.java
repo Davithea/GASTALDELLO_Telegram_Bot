@@ -1,6 +1,7 @@
 package bot;
 
 import database.DatabaseManager;
+import model.H2HData;
 import model.Match;
 import model.Player;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
@@ -27,71 +28,6 @@ public class BotTelegramGastaldello implements LongPollingSingleThreadUpdateCons
     private final Map<Long, String> userStates = new HashMap<>();
     private final Map<Long, String> h2hPlayer1 = new HashMap<>();
 
-    // Mappa bandiere
-    private static final Map<String, String> COUNTRY_FLAGS = new HashMap<>();
-
-    static {
-        COUNTRY_FLAGS.put("ITALY", "🇮🇹");
-        COUNTRY_FLAGS.put("ITA", "🇮🇹");
-        COUNTRY_FLAGS.put("SPAIN", "🇪🇸");
-        COUNTRY_FLAGS.put("ESP", "🇪🇸");
-        COUNTRY_FLAGS.put("SERBIA", "🇷🇸");
-        COUNTRY_FLAGS.put("SRB", "🇷🇸");
-        COUNTRY_FLAGS.put("RUSSIA", "🇷🇺");
-        COUNTRY_FLAGS.put("RUS", "🇷🇺");
-        COUNTRY_FLAGS.put("FRANCE", "🇫🇷");
-        COUNTRY_FLAGS.put("FRA", "🇫🇷");
-        COUNTRY_FLAGS.put("GERMANY", "🇩🇪");
-        COUNTRY_FLAGS.put("GER", "🇩🇪");
-        COUNTRY_FLAGS.put("GREECE", "🇬🇷");
-        COUNTRY_FLAGS.put("GRE", "🇬🇷");
-        COUNTRY_FLAGS.put("NORWAY", "🇳🇴");
-        COUNTRY_FLAGS.put("NOR", "🇳🇴");
-        COUNTRY_FLAGS.put("POLAND", "🇵🇱");
-        COUNTRY_FLAGS.put("POL", "🇵🇱");
-        COUNTRY_FLAGS.put("CROATIA", "🇭🇷");
-        COUNTRY_FLAGS.put("CRO", "🇭🇷");
-        COUNTRY_FLAGS.put("SWITZERLAND", "🇨🇭");
-        COUNTRY_FLAGS.put("SUI", "🇨🇭");
-        COUNTRY_FLAGS.put("AUSTRIA", "🇦🇹");
-        COUNTRY_FLAGS.put("AUT", "🇦🇹");
-        COUNTRY_FLAGS.put("CZECH REPUBLIC", "🇨🇿");
-        COUNTRY_FLAGS.put("CZE", "🇨🇿");
-        COUNTRY_FLAGS.put("NETHERLANDS", "🇳🇱");
-        COUNTRY_FLAGS.put("NED", "🇳🇱");
-        COUNTRY_FLAGS.put("BELGIUM", "🇧🇪");
-        COUNTRY_FLAGS.put("BEL", "🇧🇪");
-        COUNTRY_FLAGS.put("SWEDEN", "🇸🇪");
-        COUNTRY_FLAGS.put("SWE", "🇸🇪");
-        COUNTRY_FLAGS.put("UNITED KINGDOM", "🇬🇧");
-        COUNTRY_FLAGS.put("GREAT BRITAIN", "🇬🇧");
-        COUNTRY_FLAGS.put("GBR", "🇬🇧");
-        COUNTRY_FLAGS.put("PORTUGAL", "🇵🇹");
-        COUNTRY_FLAGS.put("POR", "🇵🇹");
-        COUNTRY_FLAGS.put("USA", "🇺🇸");
-        COUNTRY_FLAGS.put("UNITED STATES", "🇺🇸");
-        COUNTRY_FLAGS.put("ARGENTINA", "🇦🇷");
-        COUNTRY_FLAGS.put("ARG", "🇦🇷");
-        COUNTRY_FLAGS.put("BRAZIL", "🇧🇷");
-        COUNTRY_FLAGS.put("BRA", "🇧🇷");
-        COUNTRY_FLAGS.put("CANADA", "🇨🇦");
-        COUNTRY_FLAGS.put("CAN", "🇨🇦");
-        COUNTRY_FLAGS.put("CHILE", "🇨🇱");
-        COUNTRY_FLAGS.put("CHI", "🇨🇱");
-        COUNTRY_FLAGS.put("MEXICO", "🇲🇽");
-        COUNTRY_FLAGS.put("MEX", "🇲🇽");
-        COUNTRY_FLAGS.put("AUSTRALIA", "🇦🇺");
-        COUNTRY_FLAGS.put("AUS", "🇦🇺");
-        COUNTRY_FLAGS.put("JAPAN", "🇯🇵");
-        COUNTRY_FLAGS.put("JPN", "🇯🇵");
-        COUNTRY_FLAGS.put("CHINA", "🇨🇳");
-        COUNTRY_FLAGS.put("CHN", "🇨🇳");
-        COUNTRY_FLAGS.put("KAZAKHSTAN", "🇰🇿");
-        COUNTRY_FLAGS.put("KAZ", "🇰🇿");
-        COUNTRY_FLAGS.put("SOUTH KOREA", "🇰🇷");
-        COUNTRY_FLAGS.put("KOR", "🇰🇷");
-    }
-
     public BotTelegramGastaldello(String botToken, String rapidApiKey) {
         this.telegramClient = new OkHttpTelegramClient(botToken);
         this.tennisService = new TennisService(rapidApiKey);
@@ -114,8 +50,7 @@ public class BotTelegramGastaldello implements LongPollingSingleThreadUpdateCons
         commands.add(new BotCommand("classificawtadoppio", "Top 10 WTA Doppio"));
         commands.add(new BotCommand("partite", "Partite di oggi"));
         commands.add(new BotCommand("cerca", "Cerca giocatore"));
-        // H2H rimosso - richiede API non disponibili
-        // commands.add(new BotCommand("h2h", "Head to Head tra giocatori"));
+        commands.add(new BotCommand("h2h", "Head to Head tra giocatori"));
         commands.add(new BotCommand("preferiti", "I tuoi preferiti"));
         commands.add(new BotCommand("statistiche", "Statistiche personali"));
         commands.add(new BotCommand("aiuto", "Mostra aiuto"));
@@ -179,6 +114,7 @@ public class BotTelegramGastaldello implements LongPollingSingleThreadUpdateCons
                         "👩👩 /classificawtadoppio - Top 10 WTA doppio\n" +
                         " 📅  /partite - Partite di oggi\n" +
                         " 🔍  /cerca - Cerca giocatore\n" +
+                        " ⚔️  /h2h - Confronta due giocatori\n" +
                         " ⭐  /preferiti - I tuoi preferiti\n" +
                         " ➕  /aggiungi [nome] - Aggiungi preferito\n" +
                         " ➖  /rimuovi [nome] - Rimuovi preferito\n" +
@@ -223,14 +159,14 @@ public class BotTelegramGastaldello implements LongPollingSingleThreadUpdateCons
             }
 
             // PARTITE LIVE
-            if (command.equals("/partite") || command.equals("📅 Live")) {
+            if (command.equals("/partite") || command.equals("📅 PARTITE")) {
                 List<Match> matches = tennisService.getRecentMatches();
                 databaseManager.saveMatches(matches);
                 return formatMatches(matches);
             }
 
             // CERCA INTERATTIVO
-            if (command.equals("/cerca") || command.equals("🔍 Cerca")) {
+            if (command.equals("/cerca") || command.equals("🔍 CERCA")) {
                 userStates.put(chatId, "WAITING_PLAYER_NAME");
                 return "🔍 RICERCA GIOCATORE\n\n" +
                         "Scrivi il nome del giocatore da cercare.\n\n" +
@@ -241,20 +177,21 @@ public class BotTelegramGastaldello implements LongPollingSingleThreadUpdateCons
                         "Digita /annulla per annullare.";
             }
 
-            // H2H RIMOSSO - Non funziona senza API
-            /*if (command.equals("/h2h") || command.equals("⚔️ H2H")) {
-            userStates.put(chatId, "WAITING_H2H_PLAYER1");
-            return "⚔️ HEAD TO HEAD\n\n" +
-                    "Scrivi il nome del PRIMO giocatore.\n\n" +
-                    "Esempi:\n" +
-                    "• Sinner\n" +
-                    "• Djokovic\n" +
-                    "• Alcaraz\n\n" +
-                    "Digita /annulla per annullare.";
-        }*/
+            // Cerca questa sezione nel metodo processCommand e decommentala:
+            if (command.equals("/h2h") || command.equals("⚔️ H2H")) {
+                userStates.put(chatId, "WAITING_H2H_PLAYER1");
+                return "⚔️ HEAD TO HEAD\n\n" +
+                        "Scrivi il nome completo del PRIMO giocatore.\n\n" +
+                        "Esempi:\n" +
+                        "• Jannik Sinner\n" +
+                        "• Novak Djokovic\n" +
+                        "• Carlos Alcaraz\n\n" +
+                        "⚠️ IMPORTANTE: Usa nome e cognome completi!\n\n" +
+                        "Digita /annulla per annullare.";
+            }
 
         // PREFERITI INTERATTIVI
-        if (command.equals("/preferiti") || command.equals("⭐ Preferiti")) {
+        if (command.equals("/preferiti") || command.equals("⭐ PREFERITI")) {
             return databaseManager.getFavoritePlayers(chatId);
         }
 
@@ -405,37 +342,55 @@ private String handleH2HPlayer1(Long chatId, String playerName) {
             "Digita /annulla per annullare.";
 }
 
-private String handleH2HPlayer2(Long chatId, String player2Name) {
-    userStates.remove(chatId);
+// Sostituisci il metodo handleH2HPlayer2 nel BotTelegramGastaldello con questo:
 
-    if (player2Name.equalsIgnoreCase("/annulla")) {
-        h2hPlayer1.remove(chatId);
-        return "❌ H2H annullato.";
+    private String handleH2HPlayer2(Long chatId, String player2Name) {
+        userStates.remove(chatId);
+
+        if (player2Name.equalsIgnoreCase("/annulla")) {
+            h2hPlayer1.remove(chatId);
+            return "❌ H2H annullato.";
+        }
+
+        String player1Name = h2hPlayer1.remove(chatId);
+
+        if (player1Name == null) {
+            return "⚠️ Errore. Riprova con /h2h";
+        }
+
+        if (player2Name.isEmpty() || player2Name.length() < 2) {
+            return "⚠️ Nome troppo corto. Riprova con /h2h";
+        }
+
+        // Ottieni i dati H2H completi
+        H2HData h2hData = tennisService.getH2HData(player1Name, player2Name);
+
+        if (h2hData != null) {
+            // Invia le foto dei giocatori se disponibili
+            if (h2hData.getPlayer1Image() != null && !h2hData.getPlayer1Image().isEmpty()) {
+                sendPhoto(chatId, h2hData.getPlayer1Image(), h2hData.getPlayer1Name());
+            }
+
+            if (h2hData.getPlayer2Image() != null && !h2hData.getPlayer2Image().isEmpty()) {
+                sendPhoto(chatId, h2hData.getPlayer2Image(), h2hData.getPlayer2Name());
+            }
+
+            // Formatta e restituisci i dati H2H
+            return tennisService.getH2H(player1Name, player2Name);
+        } else {
+            return "❌ Impossibile recuperare H2H tra " + player1Name + " e " + player2Name + ".\n\n" +
+                    "Possibili cause:\n" +
+                    "• Errore di connessione\n" +
+                    "• Nomi non corretti (es. usa 'Jannik Sinner' invece di 'Sinner')\n" +
+                    "• Sito non raggiungibile\n\n" +
+                    "💡 Suggerimenti:\n" +
+                    "• Usa nome e cognome completi\n" +
+                    "• Controlla lo spelling\n" +
+                    "• Verifica che i giocatori esistano\n\n" +
+                    "Riprova con /h2h";
+        }
     }
 
-    String player1Name = h2hPlayer1.remove(chatId);
-
-    if (player1Name == null) {
-        return "⚠️ Errore. Riprova con /h2h";
-    }
-
-    if (player2Name.isEmpty() || player2Name.length() < 2) {
-        return "⚠️ Nome troppo corto. Riprova con /h2h";
-    }
-
-    String h2hResult = tennisService.getH2H(player1Name, player2Name);
-
-    if (h2hResult != null) {
-        return h2hResult;
-    } else {
-        return "❌ Impossibile recuperare H2H tra " + player1Name + " e " + player2Name + ".\n\n" +
-                "Possibili cause:\n" +
-                "• I giocatori non si sono mai affrontati\n" +
-                "• Nomi non corretti\n" +
-                "• Dati non disponibili nell'API\n\n" +
-                "Riprova con /h2h";
-    }
-}
 
 // ==================== FORMATTATORI ====================
 
@@ -461,6 +416,8 @@ private String formatRankings(List<Player> rankings, String type) {
 
     // Sostituisci il metodo formatMatches nel BotTelegramGastaldello
 
+// Sostituisci il metodo formatMatches con questa versione corretta:
+
     private String formatMatches(List<Match> matches) {
         if (matches.isEmpty()) {
             return "ℹ️ NESSUNA PARTITA LIVE\n\n" +
@@ -474,39 +431,71 @@ private String formatRankings(List<Player> rankings, String type) {
 
         StringBuilder sb = new StringBuilder("🎾 PARTITE DI OGGI\n\n");
         String currentTournament = "";
+        String currentLocation = "";
 
         for (Match match : matches) {
-            // Mostra il torneo solo se cambia
-            if (!match.getTournament().equals(currentTournament)) {
+            // ✅ FIX 1: Mostra il torneo E il luogo ogni volta che cambiano
+            if (!match.getTournament().equals(currentTournament) ||
+                    !match.getLocation().equals(currentLocation)) {
+
                 currentTournament = match.getTournament();
+                currentLocation = match.getLocation();
+
                 String emoji = getTournamentEmoji(currentTournament);
                 sb.append(String.format("\n%s %s\n", emoji, currentTournament));
+
+                // ✅ FIX: Stampa sempre il luogo se presente
+                if (currentLocation != null && !currentLocation.isEmpty()) {
+                    sb.append(String.format("📍 %s\n", currentLocation));
+                }
+
                 sb.append("─────────────────────\n");
             }
 
             if (match.isFinished()) {
-                // 1️⃣ Nomi originali
+                // Partita FINITA
                 sb.append(String.format("👤 %s vs %s\n", match.getPlayer1(), match.getPlayer2()));
 
-                // 2️⃣ Punteggio dettagliato
+                // Punteggio dettagliato
                 if (match.getDetailedScore() != null && !match.getDetailedScore().isEmpty()) {
                     sb.append(String.format("📊 Punteggio: %s\n", match.getDetailedScore()));
                 }
 
-                // 3️⃣ Vincitore con set vinti
+                // Vincitore con set vinti
                 if (match.getWinner() != null && match.getSetScore() != null) {
                     String winner = match.getWinner();
                     String loser = winner.equals(match.getPlayer1()) ? match.getPlayer2() : match.getPlayer1();
-                    sb.append(String.format("%s b. %s %s\n", winner, loser, match.getSetScore()));
+                    sb.append(String.format("🏆 %s b. %s %s\n", winner, loser, match.getSetScore()));
                 }
 
-            } else if (match.isLive() && match.getDetailedScore() != null) {
-                sb.append(String.format("👤 %s vs %s\n🔴 LIVE: %s\n",
-                        match.getPlayer1(), match.getPlayer2(), match.getDetailedScore()));
+                if(match.isTavolino())
+                    sb.append("🩼 A TAVOLINO\n");
+            } else if (match.isLive()) {
+                // Partita LIVE
+                sb.append(String.format("👤 %s vs %s\n", match.getPlayer1(), match.getPlayer2()));
+
+                // ✅ FIX 2: Mostra il punteggio del game corrente
+                if (match.getCurrentGame() != null && !match.getCurrentGame().isEmpty()) {
+                    sb.append(String.format("🔴 LIVE - Game: %s\n", match.getCurrentGame()));
+                } else {
+                    sb.append("🔴 LIVE\n");
+                }
+                // Punteggio dei set
+                if (match.getDetailedScore() != null && !match.getDetailedScore().isEmpty()) {
+                    sb.append(String.format("📊 Set: %s\n", match.getDetailedScore()));
+                }
+            } else if (match.isAnnullata()){
+                // Partita Annullata
+                sb.append(String.format("👤 %s vs %s\n", match.getPlayer1(), match.getPlayer2()));
+                sb.append(String.format("⏰ %s\n",
+                        (match.getDate() != null ? match.getDate() : "Orario sconosiuto")));
+                sb.append("🚫 ANNULLATA\n");
             } else {
-                sb.append(String.format("👤 %s vs %s\n⏰ %s\n",
-                        match.getPlayer1(), match.getPlayer2(),
-                        (match.getStatus() != null ? match.getStatus() : "Non iniziata")));
+                // Partita NON INIZIATA
+                sb.append(String.format("👤 %s vs %s\n", match.getPlayer1(), match.getPlayer2()));
+                sb.append(String.format("⏰ %s\n",
+                        (match.getDate() != null ? match.getDate() : "Non iniziata")));
+                sb.append("🟢\n");
             }
 
             sb.append("\n");
@@ -517,7 +506,6 @@ private String formatRankings(List<Player> rankings, String type) {
 
         return sb.toString();
     }
-
 
 private String getTournamentEmoji(String tournament) {
     String lower = tournament.toLowerCase();
@@ -535,28 +523,12 @@ private String getTournamentEmoji(String tournament) {
 private String formatPlayerInfo(Player player) {
     StringBuilder sb = new StringBuilder();
     sb.append(String.format("🎾 %s\n\n", player.getNome()));
-    sb.append(String.format("🌍 %s %s\n", getFlagEmoji(player.getPaese()), player.getPaese()));
     sb.append(String.format("🏆 Ranking: #%d\n", player.getRanking()));
     sb.append(String.format("📊 Punti: %d\n", player.getPunti()));
     if (player.getEta() > 0) {
         sb.append(String.format("🎂 Età: %d anni\n", player.getEta()));
     }
     return sb.toString();
-}
-
-private String getFlagEmoji(String country) {
-    if (country == null || country.isEmpty()) return "🌍";
-
-    country = country.trim().toUpperCase();
-
-    if (country.contains("/")) {
-        String[] countries = country.split("/");
-        String flag1 = getFlagEmoji(countries[0].trim());
-        String flag2 = countries.length > 1 ? getFlagEmoji(countries[1].trim()) : "";
-        return flag1 + (flag2.isEmpty() ? "" : " " + flag2);
-    }
-
-    return COUNTRY_FLAGS.getOrDefault(country, "🌍");
 }
 
 private void sendMessage(Long chatId, String text, boolean showKeyboard) {
@@ -597,19 +569,24 @@ private ReplyKeyboardMarkup createKeyboard() {
 
     KeyboardRow row1 = new KeyboardRow();
     row1.add("🏆 ATP");
-    row1.add("👩 WTA");
+    row1.add("👨👨 ATP");
 
     KeyboardRow row2 = new KeyboardRow();
-    row2.add("📅 Live");
-    row2.add("🔍 Cerca");
+    row2.add("👩 WTA");
+    row2.add("👩👩 WTA");
 
     KeyboardRow row3 = new KeyboardRow();
-    row3.add("⭐ Preferiti");
-    row3.add("📊 Stats");
+    row3.add("📅 PARTITE");
+    row3.add("🔍 CERCA");
+
+    KeyboardRow row4 = new KeyboardRow();
+    row4.add("⚔️ H2H");
+    row4.add("⭐ PREFERITI");
 
     keyboardRows.add(row1);
     keyboardRows.add(row2);
     keyboardRows.add(row3);
+    keyboardRows.add(row4);
 
     return ReplyKeyboardMarkup.builder()
             .keyboard(keyboardRows)

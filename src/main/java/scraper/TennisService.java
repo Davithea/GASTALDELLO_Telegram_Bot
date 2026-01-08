@@ -1,5 +1,6 @@
 package scraper;
 
+import model.H2HData;
 import model.Match;
 import model.Player;
 import okhttp3.OkHttpClient;
@@ -620,18 +621,388 @@ public class TennisService {
         return null;
     }
 
-    // ==================== HEAD TO HEAD ====================
+    // ==================== HEAD TO HEAD (SCRAPING MATCHSTAT.COM) ====================
+    /**
+     * Recupera i dati H2H tra due giocatori da matchstat.com
+     * @param player1 Nome completo primo giocatore (es. "Jannik Sinner")
+     * @param player2 Nome completo secondo giocatore (es. "Lorenzo Musetti")
+     * @return Oggetto H2HData con tutte le statistiche
+     */
+    public H2HData getH2HData(String player1, String player2) {
+        H2HData h2hData = new H2HData();
 
+        try {
+            // Formatta i nomi per l'URL (es. "Jannik Sinner" -> "Jannik%20Sinner")
+            String formattedPlayer1 = formatPlayerNameForURL(player1);
+            String formattedPlayer2 = formatPlayerNameForURL(player2);
+
+            String url = String.format("https://matchstat.com/tennis/h2h-odds-bets/%s/%s/",
+                    formattedPlayer1, formattedPlayer2);
+
+            System.out.println("🔍 Recupero H2H da: " + url);
+
+            Request request = new Request.Builder()
+                    .url(url)
+                    .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .build();
+
+            try (Response response = client.newCall(request).execute()) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    System.out.println("❌ Errore HTTP: " + response.code());
+                    return null;
+                }
+
+                String html = response.body().string();
+                Document doc = Jsoup.parse(html);
+
+                // Usa i nomi forniti dall'utente come fallback
+                h2hData.setPlayer1Name(player1);
+                h2hData.setPlayer2Name(player2);
+
+                // Prova vari selettori per i nomi giocatori
+                Elements playerNames = doc.select(".table-player__name, .player-name, h2.player-name, .h2h-player-name");
+                if (playerNames.size() >= 2) {
+                    String name1 = playerNames.get(0).text().trim();
+                    String name2 = playerNames.get(1).text().trim();
+                    if (!name1.isEmpty()) h2hData.setPlayer1Name(name1);
+                    if (!name2.isEmpty()) h2hData.setPlayer2Name(name2);
+                    System.out.println("✅ Giocatori trovati: " + h2hData.getPlayer1Name() + " vs " + h2hData.getPlayer2Name());
+                } else {
+                    System.out.println("⚠️ Nomi non trovati con selettori, uso nomi input: " + player1 + " vs " + player2);
+                }
+
+                // Estrai immagini giocatori con vari selettori
+                Elements imgs = doc.select("img");
+                for (Element img : imgs) {
+                    String alt = img.attr("alt").toLowerCase();
+                    if (alt.contains(player1.toLowerCase())) {
+                        h2hData.setPlayer1Image(img.attr("src").startsWith("//") ? "https:" + img.attr("src") : img.attr("src"));
+                    } else if (alt.contains(player2.toLowerCase())) {
+                        h2hData.setPlayer2Image(img.attr("src").startsWith("//") ? "https:" + img.attr("src") : img.attr("src"));
+                    }
+                }
+
+                // Estrai statistiche dalla tabella principale
+                Elements statRows = doc.select("tr");
+                int statsFound = 0;
+                int totalH2H = 0;
+
+                for (Element row : statRows) {
+                    Elements cells = row.select("td");
+                    if (cells.size() < 3) continue;
+
+                    String stat1 = cells.get(0).text().trim();
+                    String label = cells.get(1).text().trim();
+                    String stat2 = cells.get(2).text().trim();
+
+                    System.out.println("📊 Stat: [" + stat1 + "] | [" + label + "] | [" + stat2 + "]");
+
+                    // Prize Money
+                    if (label.contains("Career Prize Money") || label.contains("Prize Money")) {
+                        h2hData.setPlayer1PrizeMoney(stat1);
+                        h2hData.setPlayer2PrizeMoney(stat2);
+                        statsFound++;
+                        System.out.println("   ✅ Prize Money trovato");
+                    }
+                    // Career W/L
+                    else if (label.contains("Career Total W/L") || label.contains("Career W/L") || label.contains("Total W/L")) {
+                        h2hData.setPlayer1WinLoss(extractWinLoss(stat1));
+                        h2hData.setPlayer1WinPercentage(extractPercentage(stat1));
+                        h2hData.setPlayer2WinLoss(extractWinLoss(stat2));
+                        h2hData.setPlayer2WinPercentage(extractPercentage(stat2));
+                        statsFound++;
+                        System.out.println("   ✅ Career W/L trovato");
+                    }
+                    // YTD W/L
+                    else if (label.contains("YTD Win/Loss") || label.contains("YTD W/L")) {
+                        break;
+                    }
+                    // Clay
+                    else if (label.equals("Clay") || label.contains("Clay")) {
+                        h2hData.setPlayer1Clay(parseIntSafe(stat1));
+                        h2hData.setPlayer2Clay(parseIntSafe(stat2));
+                        statsFound++;
+                    }
+                    // Hard
+                    else if (label.equals("Hard") || label.contains("Hard")) {
+                        h2hData.setPlayer1Hard(parseIntSafe(stat1));
+                        h2hData.setPlayer2Hard(parseIntSafe(stat2));
+                        statsFound++;
+                    }
+                    // Indoor
+                    else if (label.equals("Indoor") || label.contains("Indoor")) {
+                        h2hData.setPlayer1Indoor(parseIntSafe(stat1));
+                        h2hData.setPlayer2Indoor(parseIntSafe(stat2));
+                        statsFound++;
+                    }
+                    //Grass
+                    else if (label.equals("Grass") || label.contains("Grass")) {
+                        h2hData.setPlayer1Grass(parseIntSafe(stat1));
+                        h2hData.setPlayer2Grass(parseIntSafe(stat2));
+                        statsFound++;
+                    }
+                    // Titles
+                    else if (label.equals("Titles") || label.contains("Titles") || label.contains("Titoli")) {
+                        h2hData.setPlayer1Titles(parseIntSafe(stat1));
+                        h2hData.setPlayer2Titles(parseIntSafe(stat2));
+                        statsFound++;
+                    }
+                    // Total H2H Matches
+                    else if (label.contains("Total H2H Matches") || label.contains("H2H Matches") || label.contains("Total Matches")) {
+                        // Determina il record H2H (chi ha vinto di più)
+                        int p1Wins = parseIntSafe(stat1);
+                        int p2Wins = parseIntSafe(stat2);
+                        totalH2H = p1Wins + p2Wins;
+                        h2hData.setTotalH2HMatches(totalH2H);
+                        h2hData.setH2hRecord(p1Wins + "-" + p2Wins);
+                        statsFound++;
+                        System.out.println("   ✅ H2H Record: " + h2hData.getH2hRecord());
+                    }
+
+                }
+
+                System.out.println("✅ H2H estratto con successo - " + statsFound + " statistiche trovate");
+
+                // Verifica che almeno qualche dato sia stato trovato
+                if (statsFound == 0) {
+                    System.out.println("⚠️ Nessuna statistica trovata, salvo HTML per debug");
+                    // Opzionale: salva l'HTML per debugging
+                    // java.nio.file.Files.write(java.nio.file.Paths.get("debug_h2h.html"), html.getBytes());
+                }
+
+                return h2hData;
+
+            }
+
+        } catch (Exception e) {
+            System.out.println("❌ Errore scraping H2H: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Formatta il nome del giocatore per l'URL
+     * Es: "Jannik Sinner" -> "Jannik%20Sinner"
+     */
+    private String formatPlayerNameForURL(String name) {
+        if (name == null || name.isEmpty()) return "";
+
+        // Capitalizza ogni parola e sostituisci spazi con %20
+        String[] words = name.trim().split("\\s+");
+        StringBuilder formatted = new StringBuilder();
+
+        for (int i = 0; i < words.length; i++) {
+            String word = words[i];
+            if (word.length() > 0) {
+                formatted.append(Character.toUpperCase(word.charAt(0)));
+                if (word.length() > 1) {
+                    formatted.append(word.substring(1).toLowerCase());
+                }
+
+                if (i < words.length - 1) {
+                    formatted.append("%20");
+                }
+            }
+        }
+
+        return formatted.toString();
+    }
+
+    /**
+     * Estrae la percentuale da una stringa tipo "59.38% (269-184)"
+     */
+    private String extractPercentage(String text) {
+        if (text == null || text.isEmpty()) return "0%";
+
+        Pattern pattern = Pattern.compile("(\\d+\\.?\\d*)%");
+        Matcher matcher = pattern.matcher(text);
+
+        if (matcher.find()) {
+            return matcher.group(1) + "%";
+        }
+
+        return "0%";
+    }
+
+    /**
+     * Estrae il record W-L da una stringa tipo "59.38% (269-184)"
+     */
+    private String extractWinLoss(String text) {
+        if (text == null || text.isEmpty()) return "0-0";
+
+        Pattern pattern = Pattern.compile("\\((\\d+-\\d+)\\)");
+        Matcher matcher = pattern.matcher(text);
+
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+
+        return "0-0";
+    }
+
+    /**
+     * Parse sicuro di interi
+     */
+    private int parseIntSafe(String text) {
+        if (text == null || text.isEmpty()) return 0;
+        try {
+            text = text.replaceAll("[^0-9]", ""); // Solo cifre
+            return Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Metodo wrapper per compatibilità con il vecchio codice
+     * Restituisce una stringa formattata con i dati H2H
+     */
     public String getH2H(String player1, String player2) {
-        System.out.println("📊 H2H: " + player1 + " vs " + player2);
+        H2HData data = getH2HData(player1, player2);
 
-        return "⚔️ HEAD TO HEAD\n\n" +
-                player1 + " vs " + player2 + "\n\n" +
-                "ℹ️ Statistiche H2H non disponibili con scraping.\n\n" +
-                "💡 Consulta:\n" +
-                "- https://www.atptour.com/\n" +
-                "- https://www.wtatennis.com/\n" +
-                "- https://www.ultimatetennisstatistics.com/";
+        if (data == null) {
+            return "❌ Impossibile recuperare i dati H2H.\n\n" +
+                    "Possibili cause:\n" +
+                    "• Errore di connessione al sito\n" +
+                    "• Nomi non corretti\n" +
+                    "• Sito non raggiungibile\n\n" +
+                    "💡 Verifica lo spelling dei nomi e riprova.";
+        }
+
+        // Anche se non abbiamo trovato tutti i dati, mostriamo quello che abbiamo
+        return formatH2HData(data);
+    }
+
+    /**
+     * Formatta i dati H2H per la visualizzazione
+     */
+    private String formatH2HData(H2HData data) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("⚔️ HEAD TO HEAD ⚔️\n\n");
+        sb.append(String.format("👤 %s vs %s\n\n",
+                data.getPlayer1Name() != null ? data.getPlayer1Name() : "Player 1",
+                data.getPlayer2Name() != null ? data.getPlayer2Name() : "Player 2"));
+
+        // H2H Record
+        if (data.getTotalH2HMatches() > 0 || data.getH2hRecord() != null) {
+            sb.append("📊 SCONTRI DIRETTI\n");
+            if (data.getTotalH2HMatches() > 0) {
+                sb.append(String.format("Totale partite: %d\n", data.getTotalH2HMatches()));
+            }
+            if (data.getH2hRecord() != null && !data.getH2hRecord().isEmpty()) {
+                sb.append(String.format("Record: %s\n", data.getH2hRecord()));
+            }
+            sb.append("\n");
+        }
+
+        // Statistiche Career
+        boolean hasCareerStats = false;
+        StringBuilder careerStats = new StringBuilder();
+
+        if (data.getPlayer1PrizeMoney() != null || data.getPlayer2PrizeMoney() != null) {
+            careerStats.append(String.format("💰 Prize Money:\n"));
+            if (data.getPlayer1PrizeMoney() != null) {
+                careerStats.append(String.format("   %s: %s\n",
+                        data.getPlayer1Name() != null ? data.getPlayer1Name() : "Player 1",
+                        data.getPlayer1PrizeMoney()));
+            }
+            if (data.getPlayer2PrizeMoney() != null) {
+                careerStats.append(String.format("   %s: %s\n",
+                        data.getPlayer2Name() != null ? data.getPlayer2Name() : "Player 2",
+                        data.getPlayer2PrizeMoney()));
+            }
+            careerStats.append("\n");
+            hasCareerStats = true;
+        }
+
+        if (data.getPlayer1WinLoss() != null || data.getPlayer2WinLoss() != null) {
+            careerStats.append(String.format("📈 Win/Loss Totale:\n"));
+            if (data.getPlayer1WinLoss() != null) {
+                careerStats.append(String.format("   %s: %s (%s)\n",
+                        data.getPlayer1Name() != null ? data.getPlayer1Name() : "Player 1",
+                        data.getPlayer1WinLoss(),
+                        data.getPlayer1WinPercentage() != null ? data.getPlayer1WinPercentage() : "N/A"));
+            }
+            if (data.getPlayer2WinLoss() != null) {
+                careerStats.append(String.format("   %s: %s (%s)\n",
+                        data.getPlayer2Name() != null ? data.getPlayer2Name() : "Player 2",
+                        data.getPlayer2WinLoss(),
+                        data.getPlayer2WinPercentage() != null ? data.getPlayer2WinPercentage() : "N/A"));
+            }
+            careerStats.append("\n");
+            hasCareerStats = true;
+        }
+
+        if (data.getPlayer1Titles() > 0 || data.getPlayer2Titles() > 0) {
+            careerStats.append(String.format("🏅 Titoli:\n"));
+            careerStats.append(String.format("   %s: %d\n",
+                    data.getPlayer1Name() != null ? data.getPlayer1Name() : "Player 1",
+                    data.getPlayer1Titles()));
+            careerStats.append(String.format("   %s: %d\n",
+                    data.getPlayer2Name() != null ? data.getPlayer2Name() : "Player 2",
+                    data.getPlayer2Titles()));
+            careerStats.append("\n");
+            hasCareerStats = true;
+        }
+
+        if (hasCareerStats) {
+            sb.append("🏆 STATISTICHE CARRIERA\n\n");
+            sb.append(careerStats);
+        }
+
+        // Statistiche per superficie
+        if (data.getPlayer1Clay() > 0 || data.getPlayer2Clay() > 0 ||
+                data.getPlayer1Hard() > 0 || data.getPlayer2Hard() > 0 ||
+                data.getPlayer1Indoor() > 0 || data.getPlayer2Indoor() > 0) {
+
+            sb.append("🎾 VITTORIE PER SUPERFICIE\n\n");
+
+            if (data.getPlayer1Clay() > 0 || data.getPlayer2Clay() > 0) {
+                sb.append(String.format("🟤 Clay:\n"));
+                sb.append(String.format("   %s: %d\n",
+                        data.getPlayer1Name() != null ? data.getPlayer1Name() : "Player 1",
+                        data.getPlayer1Clay()));
+                sb.append(String.format("   %s: %d\n\n",
+                        data.getPlayer2Name() != null ? data.getPlayer2Name() : "Player 2",
+                        data.getPlayer2Clay()));
+            }
+
+            if (data.getPlayer1Grass() > 0 || data.getPlayer2Grass() > 0) {
+                sb.append(String.format("🟢 Grass:\n"));
+                sb.append(String.format("   %s: %d\n",
+                        data.getPlayer1Name() != null ? data.getPlayer1Name() : "Player 1",
+                        data.getPlayer1Grass()));
+                sb.append(String.format("   %s: %d\n\n",
+                        data.getPlayer2Name() != null ? data.getPlayer2Name() : "Player 2",
+                        data.getPlayer2Grass()));
+            }
+
+            if (data.getPlayer1Hard() > 0 || data.getPlayer2Hard() > 0) {
+                sb.append(String.format("🔵 Hard:\n"));
+                sb.append(String.format("   %s: %d\n",
+                        data.getPlayer1Name() != null ? data.getPlayer1Name() : "Player 1",
+                        data.getPlayer1Hard()));
+                sb.append(String.format("   %s: %d\n\n",
+                        data.getPlayer2Name() != null ? data.getPlayer2Name() : "Player 2",
+                        data.getPlayer2Hard()));
+            }
+
+            if (data.getPlayer1Indoor() > 0 || data.getPlayer2Indoor() > 0) {
+                sb.append(String.format("🏠 Indoor:\n"));
+                sb.append(String.format("   %s: %d\n",
+                        data.getPlayer1Name() != null ? data.getPlayer1Name() : "Player 1",
+                        data.getPlayer1Indoor()));
+                sb.append(String.format("   %s: %d\n\n",
+                        data.getPlayer2Name() != null ? data.getPlayer2Name() : "Player 2",
+                        data.getPlayer2Indoor()));
+            }
+        }
+
+        sb.append("📊 Fonte: matchstat.com");
+
+        return sb.toString();
     }
 
     // ────────────── PARTITE LIVE CON VINCITORE ──────────────
@@ -647,6 +1018,8 @@ public class TennisService {
 
         Set<String> processedTexts = new HashSet<>();
         String currentTournament = "Generale";
+        String currentLocation = "";
+        boolean waitingForLocation = false;
 
         try {
             driver.get("https://www.sofascore.com/it/tennis");
@@ -659,14 +1032,26 @@ public class TennisService {
                 for (WebElement el : elements) {
                     try {
                         String text = el.getText().trim();
-                        if (text.isEmpty() || !processedTexts.add(text)) continue;
+                        if (text.isEmpty()) continue;
 
+                        /* ───── TITOLO TORNEO ───── */
                         if (isTournamentTitle(text)) {
                             currentTournament = text;
+                            currentLocation = "";
+                            waitingForLocation = true;
                             continue;
                         }
 
+                        /* ───── LUOGO TORNEO (subito dopo il titolo) ───── */
+                        if (waitingForLocation && currentLocation.isEmpty() && isLocationLine(text)) {
+                            currentLocation = text;
+                            waitingForLocation = false;
+                            continue;
+                        }
+
+                        /* ───── DA QUI IN POI SOLO MATCH ───── */
                         if (!text.contains("\n")) continue;
+                        if (!processedTexts.add(text)) continue;
 
                         MatchTextData data = parseMatchText(text);
                         if (!data.isValid() || data.time.isEmpty() || !data.hasValidStatus()) continue;
@@ -674,6 +1059,7 @@ public class TennisService {
                         // Creiamo la match impostando solo l'orario e la priority
                         Match match = new Match(
                                 currentTournament,
+                                currentLocation,
                                 data.players.get(0),
                                 data.players.get(1),
                                 data.time,
@@ -683,6 +1069,11 @@ public class TennisService {
 
                         // Impostiamo lo status corretto
                         match.setStatus(data.status);
+
+                        // ✅ NUOVO: Salva il punteggio del game corrente se LIVE
+                        if (data.currentGame != null && !data.currentGame.isEmpty()) {
+                            match.setCurrentGame(data.currentGame);
+                        }
 
                         // Punteggio dettagliato
                         if (!data.scores.isEmpty()) {
@@ -712,7 +1103,7 @@ public class TennisService {
                                 // Mettiamo sempre prima il numero maggiore
                                 int maxSets = Math.max(player1Sets, player2Sets);
                                 int minSets = Math.min(player1Sets, player2Sets);
-                                match.setSetScore(maxSets + "-" + minSets); // es. "2-0"
+                                match.setSetScore(maxSets + "-" + minSets);
                             }
                         }
 
@@ -742,6 +1133,16 @@ public class TennisService {
         }
 
         return matches;
+    }
+
+    private static boolean isLocationLine(String text) {
+        // Esempi validi:
+        // Rome, Italy
+        // Doha, Qatar 🇶🇦
+        // Paris, France (Indoor)
+        // Melbourne, Australia • ATP
+
+        return text.matches("^[A-Za-z .'-]+,\\s*[A-Za-z .'-]+.*$");
     }
 
     // ────────────── DETERMINA VINCITORE ──────────────
@@ -782,7 +1183,7 @@ public class TennisService {
         return null; // Parità (improbabile)
     }
 
-    // ────────────── PARSE MATCH TEXT AGGIORNATO ──────────────
+    // ────────────── PARSE MATCH TEXT AGGIORNATO (GESTIONE LIVE CON "A") ──────────────
     private static MatchTextData parseMatchText(String text) {
         MatchTextData data = new MatchTextData();
         String[] lines = text.split("\n");
@@ -805,98 +1206,87 @@ public class TennisService {
             else if (line.matches("\\d{1,2}-\\d{1,2}(\\(\\d+\\))?")) {
                 data.scores.add(line);
             }
-            // Numeri (potrebbero essere punteggi o altro)
-            else if (line.matches("\\d+")) {
+            // Numeri o lettere (punti live, punteggi parziali)
+            else if (line.matches("\\d+|A")) {
                 allNumbers.add(line);
-                System.out.println("  [NUM] " + line);
             }
             // Nomi giocatori
             else {
                 data.players.add(line);
-                System.out.println("  [PLAYER] " + line);
             }
         }
 
-        System.out.println("  [STATUS] " + data.status);
-        System.out.println("  [TIME] " + data.time);
-        System.out.println("  [NUMBERS] " + allNumbers);
-
         // Ricostruisci i punteggi dai numeri se non già formattati
         if (data.scores.isEmpty() && !allNumbers.isEmpty()) {
-            boolean isLive = data.status.equals("LIVE");
+            boolean isLive = data.status.equals("LIVE") || data.status.matches("[1-5]º set");
+
+            // ✅ NUOVO: Salva i primi due valori come punteggio live
+            if (isLive && allNumbers.size() >= 2) {
+                data.currentGame = allNumbers.get(0) + "-" + allNumbers.get(1);
+            }
+
             data.scores = parseScoreNumbers(allNumbers, isLive);
         }
 
         return data;
     }
 
-    // ────────────── PARSING INTELLIGENTE PUNTEGGI ──────────────
+    // ────────────── PARSING INTELLIGENTE PUNTEGGI (gestione LIVE con A) ──────────────
     private static List<String> parseScoreNumbers(List<String> allNumbers, boolean isLive) {
         List<String> sets = new ArrayList<>();
 
-        // Converti ogni elemento della lista in numero intero
+        // Se LIVE, scarta i primi 2 valori dai set (già salvati in currentGame)
+        List<String> setNumbers;
+        if (isLive && allNumbers.size() > 2) {
+            setNumbers = allNumbers.subList(2, allNumbers.size());
+        } else {
+            setNumbers = new ArrayList<>(allNumbers);
+        }
+
+        // Converti solo i valori numerici per il parsing dei set
         List<Integer> scores = new ArrayList<>();
-        for (String numStr : allNumbers) {
+        for (String s : setNumbers) {
             try {
-                int num = Integer.parseInt(numStr);
+                int num = Integer.parseInt(s);
                 scores.add(num);
             } catch (NumberFormatException e) {
-                // Ignora elementi non numerici
-                System.out.println("  [⚠️ NON-NUMERIC] Skipping: " + numStr);
+                // Ignora lettere (es. "A") nei punteggi dei set
             }
         }
 
-        System.out.println("  [NUMBERS] " + scores);
-
-        // Se LIVE, scarta le prime 4 cifre (punti del game corrente)
-        if (isLive && scores.size() >= 6) {
-            scores = scores.subList(4, scores.size());
-            System.out.println("  [NUMBERS AFTER LIVE CUT] " + scores);
-        }
-
-        // RIMUOVI GLI ULTIMI 2 NUMERI (punteggio totale set: es. 2-0)
+        // Rimuovi gli ultimi 2 numeri se rappresentano il punteggio totale dei set
         if (scores.size() >= 2) {
             scores = scores.subList(0, scores.size() - 2);
-            System.out.println("  [NUMBERS AFTER REMOVING SET TOTAL] " + scores);
         }
 
-        // Se numero dispari di numeri, ignora l'ultimo numero (dato incompleto)
+        // Ignora l'ultimo numero se la lista è dispari
         if (scores.size() % 2 != 0) {
             scores = scores.subList(0, scores.size() - 1);
         }
 
         if (scores.isEmpty()) return sets;
 
-        // Dividi in due metà: prima metà = giocatore1, seconda metà = giocatore2
         int numSets = scores.size() / 2;
-
-        System.out.println("  [NUM SETS] " + numSets);
 
         // Ricostruisci i set: player1[i] vs player2[i]
         for (int i = 0; i < numSets; i++) {
             int score1 = scores.get(i);
             int score2 = scores.get(i + numSets);
 
-            System.out.println("  [TRY SET " + (i+1) + "] " + score1 + "-" + score2);
-
-            // Validazione punteggio tennis
             if (isValidTennisScore(score1, score2)) {
                 String setScore = score1 + "-" + score2;
                 sets.add(setScore);
-                System.out.println("  [✅ VALID SET] " + setScore);
 
-                // Se il set è 7-6, il PROSSIMO numero è il tiebreak
+                // Se il set è 7-6, il prossimo numero è il tiebreak
                 if ((score1 == 7 && score2 == 6) || (score1 == 6 && score2 == 7)) {
                     if (i + 1 < numSets) {
                         int nextNum = Math.min(scores.get(i + 1), scores.get(i + numSets + 1));
                         sets.set(sets.size() - 1, setScore + "(" + nextNum + ")");
-                        System.out.println("  [🎾 TIEBREAK] Added (" + nextNum + ")");
                         i++;
                     }
                 }
             } else {
-                System.out.println("  [❌ INVALID SET] " + score1 + "-" + score2 + " - stopping");
-                break;
+                break; // set non valido
             }
         }
 
@@ -919,15 +1309,16 @@ public class TennisService {
         if (score1 == 10 && score2 <= 8) return true; //per Supertiebreak normali
         if (score2 == 10 && score1 <= 8) return true;
 
-        return false;
+        return true;
     }
 
     // ────────────── CLASSE INTERNA AGGIORNATA ──────────────
     private static class MatchTextData {
         String time = "";
         List<String> players = new ArrayList<>();
-        List<String> scores = new ArrayList<>(); // NUOVO: punteggi set
+        List<String> scores = new ArrayList<>();
         String status = "";
+        String currentGame = ""; // ✅ NUOVO CAMPO
 
         boolean isValid() { return players.size() >= 2; }
         boolean hasValidStatus() {
@@ -942,13 +1333,13 @@ public class TennisService {
     private static boolean isTournamentTitle(String text) {
         String upper = text.toUpperCase();
 
-        if (upper.contains("ATP 125") || upper.contains("WTA 250") ||
+        if (upper.contains("ATP 125") || upper.contains("WTA 125") ||
                 upper.contains("ITF") || upper.contains("CHALLENGER")) {
             throw new StopScraperException("Torneo non interessante: " + text);
         }
 
         String[] allowedTournaments = {
-                "Grand Slam", "Masters 1000", "ATP 250", "ATP 500",
+                "Grand Slam", "Masters 1000", "ATP 250", "ATP 500", "WTA 250",
                 "WTA 500", "WTA 1000", "United Cup"
         };
 
@@ -957,7 +1348,6 @@ public class TennisService {
         }
         return false;
     }
-
 
     private static class StopScraperException extends RuntimeException {
         public StopScraperException(String message) { super(message); }
