@@ -13,7 +13,9 @@ import org.jsoup.select.Elements;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+
 import java.util.*;
+import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,14 +29,12 @@ import java.util.regex.Pattern;
 public class TennisService {
 
     private final OkHttpClient client;
-    private final String rapidApiKey;
 
-    public TennisService(String rapidApiKey) {
+    public TennisService() {
         this.client = new OkHttpClient.Builder()
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(15, TimeUnit.SECONDS)
                 .build();
-        this.rapidApiKey = rapidApiKey;
     }
 
     // ==================== CLASSIFICHE (SCRAPING WIKIPEDIA) ====================
@@ -622,8 +622,10 @@ public class TennisService {
     }
 
     // ==================== HEAD TO HEAD (SCRAPING MATCHSTAT.COM) ====================
+
     /**
      * Recupera i dati H2H tra due giocatori da matchstat.com
+     *
      * @param player1 Nome completo primo giocatore (es. "Jannik Sinner")
      * @param player2 Nome completo secondo giocatore (es. "Lorenzo Musetti")
      * @return Oggetto H2HData con tutte le statistiche

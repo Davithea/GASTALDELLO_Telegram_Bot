@@ -11,7 +11,7 @@ public class Main {
 
         try {
             String botToken = myConfiguration.getProperty("BOT_TOKEN");
-            String rapidApiKey = myConfiguration.getProperty("RAPID_API_KEY");
+            String apiKey = myConfiguration.getProperty("API_KEY");
 
             if (botToken == null || botToken.equals("inserisci_qui_il_token_bot")) {
                 System.err.println("❌ ERRORE: BOT_TOKEN non configurato!");
@@ -19,7 +19,7 @@ public class Main {
                 System.exit(-1);
             }
 
-            if (rapidApiKey == null || rapidApiKey.isEmpty()) {
+            if (apiKey == null || apiKey.isEmpty()) {
                 System.err.println("❌ ERRORE: RAPID_API_KEY non configurata!");
                 System.err.println("Registrati su https://rapidapi.com/");
                 System.err.println("Inserisci la tua RapidAPI key nel file config.properties");
@@ -27,7 +27,7 @@ public class Main {
             }
 
             TelegramBotsLongPollingApplication botsApplication = new TelegramBotsLongPollingApplication();
-            BotTelegramGastaldello bot = new BotTelegramGastaldello(botToken, rapidApiKey);
+            BotTelegramGastaldello bot = new BotTelegramGastaldello(botToken, apiKey);
             botsApplication.registerBot(botToken, bot);
 
             System.out.println("✅ Tennis Bot avviato correttamente!");
