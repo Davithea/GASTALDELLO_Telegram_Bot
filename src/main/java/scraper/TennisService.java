@@ -557,17 +557,21 @@ public class TennisService {
         return finalResult.length() > 0 ? finalResult.toString().trim() : null;
     }
 
+
+    // Metodo helper già esistente - lo riutilizziamo
     private String extractImageUrl(Element table) {
         Elements images = table.select("img");
 
         for (Element img : images) {
             String src = img.attr("src");
 
+            // Ignora bandiere, icone e loghi
             if (src.contains("Flag_of") || src.contains("icon") ||
                     src.contains("logo") || src.length() < 20) {
                 continue;
             }
 
+            // Costruisci URL completo
             if (src.startsWith("//")) {
                 return "https:" + src;
             } else if (src.startsWith("/")) {
@@ -621,20 +625,21 @@ public class TennisService {
         return null;
     }
 
-    // ==================== HEAD TO HEAD (SCRAPING MATCHSTAT.COM) ====================
+    // ==================== HEAD TO HEAD CON IMMAGINI WIKIPEDIA ====================
 
     /**
      * Recupera i dati H2H tra due giocatori da matchstat.com
+     * E le immagini da Wikipedia
      *
      * @param player1 Nome completo primo giocatore (es. "Jannik Sinner")
      * @param player2 Nome completo secondo giocatore (es. "Lorenzo Musetti")
-     * @return Oggetto H2HData con tutte le statistiche
+     * @return Oggetto H2HData con tutte le statistiche e immagini
      */
     public H2HData getH2HData(String player1, String player2) {
         H2HData h2hData = new H2HData();
 
         try {
-            // Formatta i nomi per l'URL (es. "Jannik Sinner" -> "Jannik%20Sinner")
+            // 1️⃣ OTTIENI STATISTICHE DA MATCHSTAT
             String formattedPlayer1 = formatPlayerNameForURL(player1);
             String formattedPlayer2 = formatPlayerNameForURL(player2);
 
@@ -657,11 +662,10 @@ public class TennisService {
                 String html = response.body().string();
                 Document doc = Jsoup.parse(html);
 
-                // Usa i nomi forniti dall'utente come fallback
                 h2hData.setPlayer1Name(player1);
                 h2hData.setPlayer2Name(player2);
 
-                // Prova vari selettori per i nomi giocatori
+                // Nomi giocatori da Matchstat
                 Elements playerNames = doc.select(".table-player__name, .player-name, h2.player-name, .h2h-player-name");
                 if (playerNames.size() >= 2) {
                     String name1 = playerNames.get(0).text().trim();
@@ -669,25 +673,11 @@ public class TennisService {
                     if (!name1.isEmpty()) h2hData.setPlayer1Name(name1);
                     if (!name2.isEmpty()) h2hData.setPlayer2Name(name2);
                     System.out.println("✅ Giocatori trovati: " + h2hData.getPlayer1Name() + " vs " + h2hData.getPlayer2Name());
-                } else {
-                    System.out.println("⚠️ Nomi non trovati con selettori, uso nomi input: " + player1 + " vs " + player2);
                 }
 
-                // Estrai immagini giocatori con vari selettori
-                Elements imgs = doc.select("img");
-                for (Element img : imgs) {
-                    String alt = img.attr("alt").toLowerCase();
-                    if (alt.contains(player1.toLowerCase())) {
-                        h2hData.setPlayer1Image(img.attr("src").startsWith("//") ? "https:" + img.attr("src") : img.attr("src"));
-                    } else if (alt.contains(player2.toLowerCase())) {
-                        h2hData.setPlayer2Image(img.attr("src").startsWith("//") ? "https:" + img.attr("src") : img.attr("src"));
-                    }
-                }
-
-                // Estrai statistiche dalla tabella principale
+                // Statistiche dalla tabella
                 Elements statRows = doc.select("tr");
                 int statsFound = 0;
-                int totalH2H = 0;
 
                 for (Element row : statRows) {
                     Elements cells = row.select("td");
@@ -697,14 +687,11 @@ public class TennisService {
                     String label = cells.get(1).text().trim();
                     String stat2 = cells.get(2).text().trim();
 
-                    System.out.println("📊 Stat: [" + stat1 + "] | [" + label + "] | [" + stat2 + "]");
-
                     // Prize Money
                     if (label.contains("Career Prize Money") || label.contains("Prize Money")) {
                         h2hData.setPlayer1PrizeMoney(stat1);
                         h2hData.setPlayer2PrizeMoney(stat2);
                         statsFound++;
-                        System.out.println("   ✅ Prize Money trovato");
                     }
                     // Career W/L
                     else if (label.contains("Career Total W/L") || label.contains("Career W/L") || label.contains("Total W/L")) {
@@ -713,72 +700,131 @@ public class TennisService {
                         h2hData.setPlayer2WinLoss(extractWinLoss(stat2));
                         h2hData.setPlayer2WinPercentage(extractPercentage(stat2));
                         statsFound++;
-                        System.out.println("   ✅ Career W/L trovato");
                     }
-                    // YTD W/L
+                    // YTD W/L (stop parsing)
                     else if (label.contains("YTD Win/Loss") || label.contains("YTD W/L")) {
                         break;
                     }
-                    // Clay
+                    // Superfici
                     else if (label.equals("Clay") || label.contains("Clay")) {
                         h2hData.setPlayer1Clay(parseIntSafe(stat1));
                         h2hData.setPlayer2Clay(parseIntSafe(stat2));
                         statsFound++;
                     }
-                    // Hard
                     else if (label.equals("Hard") || label.contains("Hard")) {
                         h2hData.setPlayer1Hard(parseIntSafe(stat1));
                         h2hData.setPlayer2Hard(parseIntSafe(stat2));
                         statsFound++;
                     }
-                    // Indoor
                     else if (label.equals("Indoor") || label.contains("Indoor")) {
                         h2hData.setPlayer1Indoor(parseIntSafe(stat1));
                         h2hData.setPlayer2Indoor(parseIntSafe(stat2));
                         statsFound++;
                     }
-                    //Grass
                     else if (label.equals("Grass") || label.contains("Grass")) {
                         h2hData.setPlayer1Grass(parseIntSafe(stat1));
                         h2hData.setPlayer2Grass(parseIntSafe(stat2));
                         statsFound++;
                     }
-                    // Titles
+                    // Titoli
                     else if (label.equals("Titles") || label.contains("Titles") || label.contains("Titoli")) {
                         h2hData.setPlayer1Titles(parseIntSafe(stat1));
                         h2hData.setPlayer2Titles(parseIntSafe(stat2));
                         statsFound++;
                     }
-                    // Total H2H Matches
+                    // H2H Record
                     else if (label.contains("Total H2H Matches") || label.contains("H2H Matches") || label.contains("Total Matches")) {
-                        // Determina il record H2H (chi ha vinto di più)
                         int p1Wins = parseIntSafe(stat1);
                         int p2Wins = parseIntSafe(stat2);
-                        totalH2H = p1Wins + p2Wins;
+                        int totalH2H = p1Wins + p2Wins;
                         h2hData.setTotalH2HMatches(totalH2H);
                         h2hData.setH2hRecord(p1Wins + "-" + p2Wins);
                         statsFound++;
                         System.out.println("   ✅ H2H Record: " + h2hData.getH2hRecord());
                     }
-
                 }
 
-                System.out.println("✅ H2H estratto con successo - " + statsFound + " statistiche trovate");
-
-                // Verifica che almeno qualche dato sia stato trovato
-                if (statsFound == 0) {
-                    System.out.println("⚠️ Nessuna statistica trovata, salvo HTML per debug");
-                    // Opzionale: salva l'HTML per debugging
-                    // java.nio.file.Files.write(java.nio.file.Paths.get("debug_h2h.html"), html.getBytes());
-                }
-
-                return h2hData;
-
+                System.out.println("✅ Statistiche estratte: " + statsFound);
             }
+
+            // 2️⃣ OTTIENI IMMAGINI DA WIKIPEDIA
+            System.out.println("📸 Recupero immagini da Wikipedia...");
+
+            String img1 = getPlayerImageFromWikipedia(player1);
+            String img2 = getPlayerImageFromWikipedia(player2);
+
+            if (img1 != null) {
+                h2hData.setPlayer1Image(img1);
+                System.out.println("✅ Immagine Player 1 trovata");
+            } else {
+                System.out.println("⚠️ Immagine Player 1 non trovata");
+            }
+
+            if (img2 != null) {
+                h2hData.setPlayer2Image(img2);
+                System.out.println("✅ Immagine Player 2 trovata");
+            } else {
+                System.out.println("⚠️ Immagine Player 2 non trovata");
+            }
+
+            return h2hData;
 
         } catch (Exception e) {
             System.out.println("❌ Errore scraping H2H: " + e.getMessage());
             e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Recupera l'immagine di un giocatore da Wikipedia
+     *
+     * @param playerName Nome del giocatore (es. "Jannik Sinner")
+     * @return URL dell'immagine o null se non trovata
+     */
+    private String getPlayerImageFromWikipedia(String playerName) {
+        try {
+            String wikiName = formatWikipediaName(playerName);
+            String url = "https://it.wikipedia.org/wiki/" + wikiName;
+
+            System.out.println("   📄 Tentativo Wikipedia: " + url);
+
+            Request request = new Request.Builder()
+                    .url(url)
+                    .addHeader("User-Agent", "Mozilla/5.0")
+                    .build();
+
+            try (Response response = client.newCall(request).execute()) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    System.out.println("   ⚠️ Pagina non trovata per: " + playerName);
+                    return null;
+                }
+
+                String html = response.body().string();
+                Document doc = Jsoup.parse(html);
+
+                // Verifica che sia un tennista
+                if (!isTennisPlayer(doc)) {
+                    System.out.println("   ⚠️ Non è un tennista: " + playerName);
+                    return null;
+                }
+
+                // Estrai immagine dall'infobox
+                Elements infobox = doc.select("table.infobox");
+                if (!infobox.isEmpty()) {
+                    String imageUrl = extractImageUrl(infobox.first());
+                    if (imageUrl != null && !imageUrl.isEmpty()) {
+                        System.out.println("   ✅ Immagine trovata per: " + playerName);
+                        return imageUrl;
+                    }
+                }
+
+                System.out.println("   ⚠️ Immagine non trovata nell'infobox per: " + playerName);
+                return null;
+            }
+
+        } catch (Exception e) {
+            System.out.println("   ❌ Errore recupero immagine per " + playerName + ": " + e.getMessage());
             return null;
         }
     }

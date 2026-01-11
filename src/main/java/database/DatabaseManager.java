@@ -1,11 +1,10 @@
 package database;
 
-import model.Match;
 import model.Player;
-
 import java.sql.*;
 import java.util.List;
 
+//Classe DatabaseManager per la gestione del database mysqlite
 public class DatabaseManager {
     private static final String DB_URL = "jdbc:sqlite:tennis_bot.db";
     private Connection connection;
@@ -16,13 +15,13 @@ public class DatabaseManager {
             initializeDatabase();
         } catch (SQLException e) {
             e.printStackTrace();
-            System.err.println("Errore nella connessione al database");
+            System.err.println("❌ Errore nella connessione al database");
         }
     }
 
     private void initializeDatabase() {
         try (Statement stmt = connection.createStatement()) {
-            // Tabella utenti
+            // Tabella utenti - semplificata
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     chat_id INTEGER PRIMARY KEY,
@@ -33,7 +32,7 @@ public class DatabaseManager {
                 )
             """);
 
-            // Tabella giocatori - AGGIORNATA con più campi
+            // Tabella giocatori - solo dati essenziali
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS players (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,20 +52,7 @@ public class DatabaseManager {
                 )
             """);
 
-            // Tabella partite
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS matches (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    tournament TEXT NOT NULL,
-                    player1 TEXT NOT NULL,
-                    player2 TEXT NOT NULL,
-                    score TEXT,
-                    match_date TEXT,
-                    saved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """);
-
-            // Tabella interazioni
+            // Tabella interazioni - log comandi
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS interactions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,7 +63,7 @@ public class DatabaseManager {
                 )
             """);
 
-            // NUOVA TABELLA: Giocatori preferiti
+            // Tabella giocatori preferiti
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS favorite_players (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,22 +75,14 @@ public class DatabaseManager {
                 )
             """);
 
-            // NUOVA TABELLA: Preferenze utente
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS user_preferences (
-                    chat_id INTEGER PRIMARY KEY,
-                    favorite_tournament TEXT,
-                    notification_enabled INTEGER DEFAULT 0,
-                    language TEXT DEFAULT 'IT',
-                    FOREIGN KEY (chat_id) REFERENCES users(chat_id)
-                )
-            """);
-
             System.out.println("✅ Database inizializzato correttamente");
+            System.out.println("📍 Percorso: " + System.getProperty("user.dir") + "/tennis_bot.db");
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
+
+    // ==================== USERS ====================
 
     public void saveUser(Long chatId, String username) {
         String sql = """
@@ -124,6 +102,8 @@ public class DatabaseManager {
             e.printStackTrace();
         }
     }
+
+    // ==================== PLAYERS ====================
 
     public void savePlayer(Player player) {
         String sql = """
@@ -169,22 +149,7 @@ public class DatabaseManager {
         }
     }
 
-    public void saveMatches(List<Match> matches) {
-        String sql = "INSERT INTO matches (tournament, player1, player2, score, match_date) VALUES (?, ?, ?, ?, ?)";
-
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            for (Match match : matches) {
-                pstmt.setString(1, match.getTournament());
-                pstmt.setString(2, match.getPlayer1());
-                pstmt.setString(3, match.getPlayer2());
-                pstmt.setString(4, match.getScore());
-                pstmt.setString(5, match.getDate());
-                pstmt.executeUpdate();
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
+    // ==================== INTERACTIONS ====================
 
     public void logInteraction(Long chatId, String command) {
         String sql = "INSERT INTO interactions (chat_id, command) VALUES (?, ?)";
@@ -201,7 +166,6 @@ public class DatabaseManager {
     // ==================== PREFERITI ====================
 
     public String addFavoritePlayer(Long chatId, String playerName) {
-        // Verifica prima se il giocatore esiste ed è un tennista
         String checkSql = "SELECT is_tennis_player, name, country, altezza, peso, miglior_ranking, vittorie_sconfitte, titoli FROM players WHERE name = ?";
 
         try (PreparedStatement checkStmt = connection.prepareStatement(checkSql)) {
@@ -219,7 +183,6 @@ public class DatabaseManager {
                         "⚠️ Solo giocatori di tennis possono essere aggiunti ai preferiti!";
             }
 
-            // Giocatore valido, aggiungilo ai preferiti
             String insertSql = "INSERT INTO favorite_players (chat_id, player_name) VALUES (?, ?)";
 
             try (PreparedStatement insertStmt = connection.prepareStatement(insertSql)) {
@@ -227,7 +190,6 @@ public class DatabaseManager {
                 insertStmt.setString(2, playerName);
                 insertStmt.executeUpdate();
 
-                // Crea messaggio con info giocatore
                 StringBuilder info = new StringBuilder();
                 info.append("⭐ ").append(playerName).append(" aggiunto ai preferiti!\n\n");
                 info.append("📊 INFO GIOCATORE\n\n");
@@ -240,8 +202,8 @@ public class DatabaseManager {
                 String titoli = rs.getString("titoli");
 
                 if (country != null) info.append("🌍 Nazionalità: ").append(country).append("\n");
-                if (altezza != null) info.append("📏 Altezza: ").append(altezza).append(" cm\n");
-                if (peso != null) info.append("⚖️ Peso: ").append(peso).append(" kg\n");
+                if (altezza != null) info.append("📏 Altezza: ").append(altezza).append("\n");
+                if (peso != null) info.append("⚖️ Peso: ").append(peso).append("\n");
                 if (migliorRanking != null) info.append("⭐ Miglior ranking: ").append(migliorRanking).append("\n");
                 if (vittorieSconfitte != null) info.append("📈 V/S: ").append(vittorieSconfitte).append("\n");
                 if (titoli != null) info.append("🏅 Titoli: ").append(titoli).append("\n");
@@ -308,7 +270,7 @@ public class DatabaseManager {
                 sb.append(String.format("%d. %s\n", count, name));
                 if (country != null) sb.append("   🌍 ").append(country).append("\n");
                 if (altezza != null && peso != null) {
-                    sb.append("   📏 ").append(altezza).append(" cm, ⚖️ ").append(peso).append(" kg\n");
+                    sb.append("   📏 ").append(altezza).append(", ⚖️ ").append(peso).append("\n");
                 }
                 if (migliorRanking != null) sb.append("   ⭐ Miglior ranking: ").append(migliorRanking).append("\n");
                 if (vittorieSconfitte != null) sb.append("   📈 V/S: ").append(vittorieSconfitte).append("\n");
@@ -412,19 +374,24 @@ public class DatabaseManager {
                 }
             }
 
-            String totalMatchesSql = "SELECT COUNT(*) as count FROM matches";
-            try (Statement stmt = connection.createStatement()) {
-                ResultSet rs = stmt.executeQuery(totalMatchesSql);
-                if (rs.next()) {
-                    stats.append(String.format("🏆 Partite salvate: %d\n", rs.getInt("count")));
-                }
-            }
-
         } catch (SQLException e) {
             e.printStackTrace();
             return "⚠️ Errore nel recupero delle statistiche.";
         }
 
         return stats.toString();
+    }
+
+    // ==================== UTILITY ====================
+
+    public void closeConnection() {
+        try {
+            if (connection != null && !connection.isClosed()) {
+                connection.close();
+                System.out.println("✅ Connessione database chiusa");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 }

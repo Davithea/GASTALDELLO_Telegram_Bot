@@ -121,9 +121,10 @@ public class BotTelegramGastaldello implements LongPollingSingleThreadUpdateCons
                         " 📅  /partite - Partite di oggi\n" +
                         " 🔍  /cerca - Cerca giocatore\n" +
                         " ⚔️  /h2h - Confronta due giocatori\n" +
+                        " ⛅  /meteo - Trova il meteo delle città dove si svolgono i tornei\n" +
                         " ⭐  /preferiti - I tuoi preferiti\n" +
-                        " ➕  /aggiungi [nome] - Aggiungi preferito\n" +
-                        " ➖  /rimuovi [nome] - Rimuovi preferito\n" +
+                        " ➕  /aggiungi - Aggiungi preferito\n" +
+                        " ➖  /rimuovi - Rimuovi preferito\n" +
                         " 📊  /statistiche - Le tue statistiche\n" +
                         " ❓  /aiuto - Mostra questo messaggio\n\n" +
                         "💡 Usa il menu in basso per i comandi rapidi!";
@@ -167,7 +168,6 @@ public class BotTelegramGastaldello implements LongPollingSingleThreadUpdateCons
             // PARTITE LIVE
             if (command.equals("/partite") || command.equals("📅 PARTITE")) {
                 List<Match> matches = tennisService.getRecentMatches();
-                databaseManager.saveMatches(matches);
                 return formatMatches(matches);
             }
 

@@ -1,281 +1,474 @@
-# 🎾 Tennis Telegram Bot
+# 🎾 Tennis Bot Telegram
 
-Bot Telegram **IBRIDO** per tennis:
-- **Classifiche ATP/WTA**: Web scraping da Wikipedia (sempre disponibile)
-- **Partite live**: RapidAPI Tennis Live Data
-- **Preferenze personali**: Salva i tuoi giocatori preferiti
+> **Bot Telegram completo per statistiche tennis in tempo reale**  
+> Classifiche ATP/WTA, partite live, ricerca giocatori, Head-to-Head, meteo e molto altro!
 
-## ✨ Funzionalità
-
-### 📊 Classifiche (Wikipedia Scraping)
-- 🏆 Top 10 ATP Singolare
-- 👩 Top 10 WTA Singolare
-- 👥 Top 10 ATP Doppio
-- 👭 Top 10 WTA Doppio
-
-### ⚡ Partite Live (RapidAPI)
-- 📅 Partite in corso in tempo reale
-- 🏆 Grand Slam, Masters 1000, ATP/WTA Tour
-
-### ⭐ Preferiti Personali
-- ➕ Aggiungi giocatori preferiti
-- ➖ Rimuovi dai preferiti
-- 📋 Visualizza la tua lista
-
-### 🔍 Ricerca Interattiva
-- Comando `/cerca` chiede il nome
-- Cerca nei top 100 ATP/WTA
-- Risultati con bandiere e statistiche
-
-### 📊 Statistiche Avanzate
-- Le tue interazioni
-- Comando preferito
-- Statistiche globali del bot
-
-## 🚀 Setup Completo
-
-### 1. Prerequisiti
-- Java 17+
-- Maven
-- Account Telegram
-
-### 2. Ottieni le API Keys (GRATIS)
-
-#### **Bot Token Telegram**
-```
-1. Apri Telegram → cerca @BotFather
-2. Invia /newbot
-3. Nome: "My Tennis Bot"
-4. Username: "mytennisbot" (deve finire con "bot")
-5. Copia il TOKEN
-```
-
-#### **RapidAPI Key**
-```
-1. Vai su https://rapidapi.com/
-2. Registrati GRATIS (solo email, NO carta)
-3. Cerca "Tennis Live Data"
-   → https://rapidapi.com/sportcontentapi/api/tennis-live-data
-4. Clicca "Subscribe to Test"
-5. Scegli piano FREE
-6. Copia "X-RapidAPI-Key" dal Code Snippets
-```
-
-**Piano FREE RapidAPI:**
-- ✅ Partite live
-- ✅ Nessun limite sulle classifiche (Wikipedia)
-- ✅ NO carta di credito
-
-### 3. Configurazione
-
-Modifica `config.properties`:
-
-```properties
-BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
-RAPID_API_KEY=abcdef1234567890ghijklmnop
-```
-
-### 4. Esecuzione
-
-```bash
-# Compila
-mvn clean package
-
-# Esegui
-java -jar target/tennis-telegram-bot-1.0-SNAPSHOT.jar
-```
-
-Output atteso:
-```
-✅ Tennis Bot avviato correttamente!
-📱 Il bot è ora in ascolto...
-📊 Classifiche: Wikipedia (scraping)
-⚡ Live: RapidAPI Tennis Live Data
-```
-
-## 📱 Comandi Bot
-
-### Comandi Base
-- `/start` - Menu principale
-- `/aiuto` - Lista comandi
-
-### Classifiche
-- `/classificaATP` - Top 10 ATP Singolare 🏆
-- `/classificaWTA` - Top 10 WTA Singolare 👩
-- `/classificaATPDoppio` - Top 10 ATP Doppio 👥
-- `/classificaWTADoppio` - Top 10 WTA Doppio 👭
-
-### Partite & Ricerca
-- `/partite` - Partite live in corso ⚡
-- `/cerca` - **INTERATTIVO**: chiede il nome dopo 🔍
-
-### Preferiti ⭐
-- `/preferiti` - Lista giocatori preferiti
-- `/aggiungi [nome]` - Aggiungi ai preferiti
-- `/rimuovi [nome]` - Rimuovi dai preferiti
-
-### Statistiche
-- `/statistiche` - Le tue statistiche personali
-
-## 💡 Esempio Utilizzo Ricerca
-
-```
-👤 Tu: /cerca
-🤖 Bot: "Scrivi il nome del giocatore..."
-
-👤 Tu: Sinner
-🤖 Bot: 
-     🎾 Jannik Sinner
-     🌍 Nazionalità: 🇮🇹 ITALY
-     🏆 Ranking: #1
-     📊 Punti: 11830
-     
-     💡 Aggiungi ai preferiti con: /aggiungi Jannik Sinner
-
-👤 Tu: /aggiungi Jannik Sinner
-🤖 Bot: "⭐ Jannik Sinner aggiunto ai preferiti!"
-```
-
-## 🔧 Struttura Progetto
-
-```
-src/
-├── Main.java                          # Entry point
-├── bot/
-│   └── BotTelegramGastaldello.java   # Logica bot + stato conversazione
-├── scraper/
-│   └── TennisService.java            # Scraping Wikipedia + API RapidAPI
-├── database/
-│   └── DatabaseManager.java          # SQLite + preferiti
-├── model/
-│   ├── Player.java
-│   └── Match.java
-└── config/
-    └── MyConfiguration.java
-```
-
-## 🗄️ Database SQLite
-
-Tabelle create automaticamente:
-
-1. **users** - Utenti e interazioni
-2. **players** - Giocatori cercati
-3. **matches** - Partite salvate
-4. **interactions** - Log comandi
-5. **favorite_players** - ⭐ Preferiti per utente
-6. **user_preferences** - Preferenze personali
-
-File: `tennis_bot.db`
-
-## 🌐 Architettura Ibrida
-
-### Perché questo approccio?
-
-| Funzionalità | Fonte | Motivo |
-|-------------|-------|--------|
-| **Classifiche** | Wikipedia | Sempre disponibile, dati ufficiali, gratuito |
-| **Partite Live** | RapidAPI | Dati in tempo reale, API affidabile |
-| **Ricerca** | Wikipedia top 100 | Sufficiente per uso normale |
-
-### Vantaggi
-- ✅ **Classifiche sempre disponibili** (no dipendenza da API)
-- ✅ **NO costi** per uso normale
-- ✅ **Dati affidabili** (Wikipedia = fonte ufficiale ATP/WTA)
-- ✅ **Live solo quando servono** (partite durante tornei)
-
-## 🐛 Risoluzione Problemi
-
-### ❌ "Classifiche non disponibili"
-- Wikipedia potrebbe essere temporaneamente offline
-- Controlla la connessione internet
-- Riprova dopo 1-2 minuti
-
-### ❌ "Nessuna partita live"
-- **NORMALE** se non ci sono tornei
-- Le partite live sono disponibili solo durante:
-    - Grand Slam
-    - Masters 1000
-    - ATP/WTA Tour events
-- Testa durante un torneo importante
-
-### ❌ "RapidAPI Key non valida"
-- Verifica key copiata senza spazi
-- Controlla di aver sottoscritto il piano FREE
-- Vai su RapidAPI dashboard e verifica
-
-### ❌ "Giocatore non trovato"
-- La ricerca funziona solo su **top 100 ATP/WTA**
-- Verifica spelling del nome
-- Prova con solo cognome (es: "Sinner" invece di "Jannik Sinner")
-
-### ❌ "Bandiere non visibili"
-- Problema risolto nel nuovo codice
-- Supporta 70+ paesi + codici ISO
-- Gestisce doppio (es: 🇮🇹 🇪🇸)
-
-## 🔐 Sicurezza
-
-**IMPORTANTE - .gitignore:**
-```
-config.properties
-tennis_bot.db
-*.log
-target/
-```
-
-**NON committare mai:**
-- Token bot
-- API keys
-- Database locale
-
-## 📊 Limiti e Quote
-
-### Wikipedia (Scraping)
-- ✅ Illimitato
-- ✅ Sempre disponibile
-- ⚠️ Richiede parsing HTML (può rompersi se cambia struttura)
-
-### RapidAPI Free Tier
-- Consulta i limiti sul tuo piano
-- Generalmente sufficiente per uso personale
-- Le partite live usano 1 richiesta
-
-## 🎯 Prossimi Sviluppi
-
-- [ ] Notifiche per giocatori preferiti
-- [ ] Statistiche head-to-head
-- [ ] Calendario tornei
-- [ ] Export preferiti
-- [ ] Multi-lingua
-
-## 🤝 Contributi
-
-Pull request benvenute!
-
-Per modifiche importanti:
-1. Apri prima una issue
-2. Descrivi il cambiamento
-3. Attendi feedback
-
-## 📝 Licenza
-
-Progetto educativo - uso libero
-
-## 📧 Supporto
-
-- **Telegram Bot**: @BotFather
-- **RapidAPI Docs**: [Tennis Live Data API](https://rapidapi.com/sportcontentapi/api/tennis-live-data)
-- **Wikipedia ATP**: [ATP Rankings](https://en.wikipedia.org/wiki/ATP_rankings)
-- **Issues**: Apri una issue su GitHub
-
-## 🙏 Credits
-
-- Dati classifiche: Wikipedia
-- Partite live: RapidAPI
-- Bot framework: TelegramBots Java Library
+[![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://www.oracle.com/java/)
+[![Telegram](https://img.shields.io/badge/Telegram-Bot%20API-blue.svg)](https://core.telegram.org/bots)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
 
-**Fatto con ❤️ e ☕ per gli appassionati di tennis**
+## 📋 Indice
 
-*Ultimo aggiornamento: Dicembre 2024*
+- [Caratteristiche](#-caratteristiche)
+- [Demo](#-demo)
+- [Prerequisiti](#-prerequisiti)
+- [Installazione](#-installazione)
+- [Configurazione](#-configurazione)
+- [Comandi Disponibili](#-comandi-disponibili)
+- [Architettura](#-architettura)
+- [Database](#-database)
+- [Tecnologie Utilizzate](#-tecnologie-utilizzate)
+- [Sviluppi Futuri](#-sviluppi-futuri)
+- [Contribuire](#-contribuire)
+- [Licenza](#-licenza)
+
+---
+
+## ✨ Caratteristiche
+
+### 🏆 Classifiche in Tempo Reale
+- **ATP Singles** - Top 10 classifica mondiale maschile
+- **WTA Singles** - Top 10 classifica mondiale femminile
+- **ATP Doubles** - Top 10 doppio maschile
+- **WTA Doubles** - Top 10 doppio femminile
+- **Race to Turin** - Classifica annuale per le ATP Finals
+
+### 📅 Partite Live
+- Monitoraggio partite in corso (LIVE)
+- Punteggio aggiornato set per set
+- Punteggio game corrente
+- Partite terminate con vincitore
+- Filtro automatico tornei rilevanti (Grand Slam, Masters 1000, ATP/WTA 500/250)
+
+### 🔍 Ricerca Giocatori
+- Ricerca dettagliata su Wikipedia
+- Informazioni complete: altezza, peso, età, ranking, titoli
+- Statistiche carriera (vittorie/sconfitte, montepremi)
+- Palmares Grand Slam
+- Foto profilo giocatore
+
+### ⚔️ Head to Head (H2H)
+- Confronto diretto tra due giocatori
+- Record scontri diretti
+- Statistiche per superficie (Clay, Hard, Grass, Indoor)
+- Montepremi totale
+- Titoli vinti
+- Foto dei giocatori
+
+### ⭐ Sistema Preferiti
+- Aggiungi giocatori preferiti
+- Visualizza lista personalizzata
+- Informazioni dettagliate salvate
+
+### 🌤 Meteo
+- Meteo in tempo reale per città torneo
+- Temperatura, umidità, vento
+- Condizioni meteo aggiornate
+
+### 📊 Statistiche Personali
+- Tracking utilizzo bot
+- Comando più utilizzato
+- Statistiche globali database
+
+---
+
+## 🎬 Demo
+
+### Menu Principale
+```
+🎾 Benvenuto nel Tennis Bot!
+
+Comandi disponibili:
+ 🏆  /classificaatp - Top 10 ATP
+ 🏁  /racetoturin - Top 10 Race
+👨👨 /classificaatpdoppio - Top 10 ATP doppio
+ 👩  /classificawta - Top 10 WTA
+👩👩 /classificawtadoppio - Top 10 WTA doppio
+ 📅  /partite - Partite di oggi
+ 🔍  /cerca - Cerca giocatore
+ ⚔️  /h2h - Confronta due giocatori
+ ⛅  /meteo - Meteo città tornei
+ ⭐  /preferiti - I tuoi preferiti
+```
+
+### Esempio Partite Live
+```
+🎾 PARTITE DI OGGI
+
+🏆 Australian Open
+📍 Melbourne, Australia
+─────────────────────
+👤 Jannik Sinner vs Novak Djokovic
+🔴 LIVE - Game: 40-30
+📊 Set: 6-4 3-2
+
+👤 Carlos Alcaraz vs Daniil Medvedev
+🏆 Alcaraz b. Medvedev 2-1
+📊 Punteggio: 6-4 3-6 7-5
+```
+
+---
+
+## 🔧 Prerequisiti
+
+- **Java 17+** ([Download JDK](https://www.oracle.com/java/technologies/downloads/))
+- **Maven** ([Download Maven](https://maven.apache.org/download.cgi))
+- **ChromeDriver** (per scraping Selenium) ([Download ChromeDriver](https://chromedriver.chromium.org/downloads))
+- **Telegram Bot Token** ([Crea bot con @BotFather](https://t.me/BotFather))
+- **OpenWeather API Key** (opzionale) ([Registrati gratis](https://openweathermap.org/api))
+
+---
+
+## 📥 Installazione
+
+### 1️⃣ Clona il repository
+```bash
+git clone https://github.com/tuo-username/tennis-bot.git
+cd tennis-bot
+```
+
+### 2️⃣ Configura le dipendenze
+```bash
+mvn clean install
+```
+
+### 3️⃣ Installa ChromeDriver
+- **Windows**: Scarica ChromeDriver e aggiungi al PATH
+- **macOS**:
+  ```bash
+  brew install chromedriver
+  ```
+- **Linux**:
+  ```bash
+  sudo apt install chromium-chromedriver
+  ```
+
+---
+
+## ⚙️ Configurazione
+
+### 1️⃣ Crea il file `.env` (o configura direttamente nel codice)
+
+Crea un file `config.properties` nella root del progetto:
+
+```properties
+# Telegram Bot Configuration
+telegram.bot.token=YOUR_TELEGRAM_BOT_TOKEN
+
+# OpenWeather API (opzionale)
+openweather.api.key=YOUR_OPENWEATHER_API_KEY
+```
+
+### 2️⃣ Ottieni il Bot Token
+
+1. Apri Telegram e cerca **@BotFather**
+2. Invia `/newbot`
+3. Segui le istruzioni e copia il **token**
+4. Incollalo in `config.properties`
+
+### 3️⃣ Ottieni API Key OpenWeather (opzionale)
+
+1. Vai su [OpenWeatherMap](https://openweathermap.org/api)
+2. Registrati gratuitamente
+3. Copia la tua **API Key**
+4. Incollala in `config.properties`
+
+---
+
+## 🚀 Avvio
+
+### Avvio Manuale
+```bash
+mvn clean compile
+mvn exec:java -Dexec.mainClass="Main"
+```
+
+### Avvio con JAR
+```bash
+mvn clean package
+java -jar target/tennis-bot-1.0.jar
+```
+
+### Output atteso
+```
+✅ Database inizializzato correttamente
+📍 Percorso: /path/to/project/tennis_bot.db
+✅ Menu comandi impostato
+🎾 Bot avviato con successo!
+```
+
+---
+
+## 🎮 Comandi Disponibili
+
+| Comando | Descrizione |
+|---------|-------------|
+| `/start` | Avvia il bot e mostra menu principale |
+| `/aiuto` | Mostra tutti i comandi disponibili |
+| `/classificaatp` | Top 10 ATP Singles |
+| `/classificawta` | Top 10 WTA Singles |
+| `/classificaatpdoppio` | Top 10 ATP Doubles |
+| `/classificawtadoppio` | Top 10 WTA Doubles |
+| `/racetoturin` | Race to ATP Finals |
+| `/partite` | Partite live e risultati di oggi |
+| `/cerca` | Cerca un giocatore (interattivo) |
+| `/h2h` | Head to Head tra 2 giocatori |
+| `/meteo` | Meteo città torneo |
+| `/preferiti` | Visualizza giocatori preferiti |
+| `/aggiungi` | Aggiungi giocatore ai preferiti |
+| `/rimuovi` | Rimuovi giocatore dai preferiti |
+| `/statistiche` | Statistiche personali e globali |
+| `/annulla` | Annulla operazione in corso |
+
+---
+
+## 🏗️ Architettura
+
+```
+tennis-bot/
+│
+├── src/main/java/
+│   ├── bot/
+│   │   └── BotTelegramGastaldello.java    # Logica principale bot
+│   ├── scraper/
+│   │   └── TennisService.java              # Web scraping (Wikipedia, SofaScore)
+│   ├── database/
+│   │   └── DatabaseManager.java            # Gestione SQLite
+│   ├── model/
+│   │   ├── Player.java                     # Modello giocatore
+│   │   ├── Match.java                      # Modello partita
+│   │   └── H2HData.java                    # Modello H2H
+│   ├── API/
+│   │   └── WeatherService.java             # API OpenWeather
+│   └── Main.java                           # Entry point
+│
+├── tennis_bot.db                           # Database SQLite
+├── pom.xml                                 # Maven dependencies
+├── config.properties                       # Configurazione
+└── README.md                               # Documentazione
+```
+
+---
+
+## 🗄️ Database
+
+### Schema SQLite
+
+#### **Tabella `users`**
+```sql
+CREATE TABLE users (
+    chat_id INTEGER PRIMARY KEY,
+    username TEXT,
+    first_interaction TIMESTAMP,
+    last_interaction TIMESTAMP,
+    total_interactions INTEGER
+);
+```
+
+#### **Tabella `players`**
+```sql
+CREATE TABLE players (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    country TEXT,
+    ranking INTEGER,
+    points INTEGER,
+    age INTEGER,
+    altezza TEXT,
+    peso TEXT,
+    miglior_ranking TEXT,
+    vittorie_sconfitte TEXT,
+    titoli TEXT,
+    is_tennis_player INTEGER,
+    search_count INTEGER,
+    last_updated TIMESTAMP
+);
+```
+
+#### **Tabella `favorite_players`**
+```sql
+CREATE TABLE favorite_players (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id INTEGER,
+    player_name TEXT,
+    added_at TIMESTAMP,
+    UNIQUE(chat_id, player_name),
+    FOREIGN KEY (chat_id) REFERENCES users(chat_id)
+);
+```
+
+#### **Tabella `interactions`**
+```sql
+CREATE TABLE interactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id INTEGER,
+    command TEXT,
+    timestamp TIMESTAMP,
+    FOREIGN KEY (chat_id) REFERENCES users(chat_id)
+);
+```
+
+---
+
+## 🛠️ Tecnologie Utilizzate
+
+### Backend
+- **Java 17** - Linguaggio principale
+- **Telegram Bot API** - Integrazione Telegram
+- **OkHttp** - HTTP client per API calls
+
+### Web Scraping
+- **Selenium WebDriver** - Scraping dinamico (SofaScore)
+- **JSoup** - Parsing HTML (Wikipedia)
+- **ChromeDriver** - Browser automation
+
+### Database
+- **SQLite** - Database embedded leggero
+- **JDBC** - Connessione database
+
+### API Esterne
+- **Wikipedia** - Dati giocatori e classifiche
+- **SofaScore** - Partite live
+- **MatchStat** - Head to Head
+- **OpenWeather** - Meteo
+
+### Build & Dependencies
+- **Maven** - Dependency management
+- **Gson** - JSON parsing
+
+---
+
+## 📦 Dipendenze Maven
+
+```xml
+<dependencies>
+    <!-- Telegram Bot API -->
+    <dependency>
+        <groupId>org.telegram</groupId>
+        <artifactId>telegrambots-longpolling</artifactId>
+        <version>8.0.0</version>
+    </dependency>
+    
+    <!-- Selenium WebDriver -->
+    <dependency>
+        <groupId>org.seleniumhq.selenium</groupId>
+        <artifactId>selenium-java</artifactId>
+        <version>4.15.0</version>
+    </dependency>
+    
+    <!-- JSoup HTML Parser -->
+    <dependency>
+        <groupId>org.jsoup</groupId>
+        <artifactId>jsoup</artifactId>
+        <version>1.17.1</version>
+    </dependency>
+    
+    <!-- SQLite JDBC -->
+    <dependency>
+        <groupId>org.xerial</groupId>
+        <artifactId>sqlite-jdbc</artifactId>
+        <version>3.44.1.0</version>
+    </dependency>
+    
+    <!-- OkHttp -->
+    <dependency>
+        <groupId>com.squareup.okhttp3</groupId>
+        <artifactId>okhttp</artifactId>
+        <version>4.12.0</version>
+    </dependency>
+    
+    <!-- Gson -->
+    <dependency>
+        <groupId>com.google.code.gson</groupId>
+        <artifactId>gson</artifactId>
+        <version>2.10.1</version>
+    </dependency>
+</dependencies>
+```
+
+---
+
+## 🚧 Sviluppi Futuri
+
+- [ ] **Notifiche push** per partite giocatori preferiti
+- [ ] **Calendario tornei** settimanale/mensile
+- [ ] **Grafici statistiche** (win rate, ranking trends)
+- [ ] **Supporto multi-lingua** (EN, ES, FR)
+- [ ] **Predizioni match** con AI/ML
+- [ ] **Quiz tennis** interattivi
+- [ ] **Streaming live** link ufficiali
+- [ ] **Deploy su cloud** (AWS/Heroku)
+
+---
+
+## 🤝 Contribuire
+
+I contributi sono benvenuti! Ecco come puoi aiutare:
+
+1. **Fork** il progetto
+2. Crea un **branch** per la tua feature (`git checkout -b feature/AmazingFeature`)
+3. **Commit** le modifiche (`git commit -m 'Add some AmazingFeature'`)
+4. **Push** sul branch (`git push origin feature/AmazingFeature`)
+5. Apri una **Pull Request**
+
+### 🐛 Segnala Bug
+Apri una [issue](https://github.com/tuo-username/tennis-bot/issues) descrivendo:
+- Comportamento atteso
+- Comportamento attuale
+- Passi per riprodurre
+- Screenshot (se applicabile)
+
+---
+
+## 📝 Licenza
+
+Questo progetto è distribuito sotto licenza **MIT**.  
+Vedi il file [LICENSE](LICENSE) per maggiori dettagli.
+
+---
+
+## 👨‍💻 Autore
+
+**Gastaldello [Il tuo nome]**
+- GitHub: [@tuo-username](https://github.com/tuo-username)
+- Telegram: [@tuo_username_telegram](https://t.me/tuo_username_telegram)
+
+---
+
+## 🙏 Ringraziamenti
+
+- [Telegram Bot API](https://core.telegram.org/bots) per la documentazione eccellente
+- [Wikipedia](https://www.wikipedia.org/) per i dati aperti
+- [SofaScore](https://www.sofascore.com/) per le partite live
+- [OpenWeather](https://openweathermap.org/) per le API meteo
+
+---
+
+## 📞 Supporto
+
+Hai problemi o domande?
+
+- 📧 Email: tua-email@example.com
+- 💬 Telegram: [@tuo_username](https://t.me/tuo_username)
+- 🐛 Issues: [GitHub Issues](https://github.com/tuo-username/tennis-bot/issues)
+
+---
+
+## ⭐ Supporta il Progetto
+
+Se questo progetto ti è stato utile, lascia una ⭐ su GitHub!
+
+```
+               🎾
+        _______________
+       |               |
+       |   TENNIS BOT  |
+       |_______________|
+            |     |
+           /       \
+          🏆       🏆
+```
+
+**Made with ❤️ and ☕ by Gastaldello**
