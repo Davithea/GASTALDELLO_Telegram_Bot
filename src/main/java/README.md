@@ -5,7 +5,6 @@
 
 [![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://www.oracle.com/java/)
 [![Telegram](https://img.shields.io/badge/Telegram-Bot%20API-blue.svg)](https://core.telegram.org/bots)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
 
@@ -13,16 +12,11 @@
 
 - [Caratteristiche](#-caratteristiche)
 - [Demo](#-demo)
-- [Prerequisiti](#-prerequisiti)
-- [Installazione](#-installazione)
 - [Configurazione](#-configurazione)
 - [Comandi Disponibili](#-comandi-disponibili)
 - [Architettura](#-architettura)
 - [Database](#-database)
 - [Tecnologie Utilizzate](#-tecnologie-utilizzate)
-- [Sviluppi Futuri](#-sviluppi-futuri)
-- [Contribuire](#-contribuire)
-- [Licenza](#-licenza)
 
 ---
 
@@ -39,7 +33,7 @@
 - Monitoraggio partite in corso (LIVE)
 - Punteggio aggiornato set per set
 - Punteggio game corrente
-- Partite terminate con vincitore
+- Partite terminate oggi con vincitore
 - Filtro automatico tornei rilevanti (Grand Slam, Masters 1000, ATP/WTA 500/250)
 
 ### 🔍 Ricerca Giocatori
@@ -63,7 +57,7 @@
 - Informazioni dettagliate salvate
 
 ### 🌤 Meteo
-- Meteo in tempo reale per città torneo
+- Meteo in tempo reale per città tornei
 - Temperatura, umidità, vento
 - Condizioni meteo aggiornate
 
@@ -98,7 +92,6 @@ Comandi disponibili:
 🎾 PARTITE DI OGGI
 
 🏆 Australian Open
-📍 Melbourne, Australia
 ─────────────────────
 👤 Jannik Sinner vs Novak Djokovic
 🔴 LIVE - Game: 40-30
@@ -111,42 +104,6 @@ Comandi disponibili:
 
 ---
 
-## 🔧 Prerequisiti
-
-- **Java 17+** ([Download JDK](https://www.oracle.com/java/technologies/downloads/))
-- **Maven** ([Download Maven](https://maven.apache.org/download.cgi))
-- **ChromeDriver** (per scraping Selenium) ([Download ChromeDriver](https://chromedriver.chromium.org/downloads))
-- **Telegram Bot Token** ([Crea bot con @BotFather](https://t.me/BotFather))
-- **OpenWeather API Key** (opzionale) ([Registrati gratis](https://openweathermap.org/api))
-
----
-
-## 📥 Installazione
-
-### 1️⃣ Clona il repository
-```bash
-git clone https://github.com/tuo-username/tennis-bot.git
-cd tennis-bot
-```
-
-### 2️⃣ Configura le dipendenze
-```bash
-mvn clean install
-```
-
-### 3️⃣ Installa ChromeDriver
-- **Windows**: Scarica ChromeDriver e aggiungi al PATH
-- **macOS**:
-  ```bash
-  brew install chromedriver
-  ```
-- **Linux**:
-  ```bash
-  sudo apt install chromium-chromedriver
-  ```
-
----
-
 ## ⚙️ Configurazione
 
 ### 1️⃣ Crea il file `.env` (o configura direttamente nel codice)
@@ -154,11 +111,8 @@ mvn clean install
 Crea un file `config.properties` nella root del progetto:
 
 ```properties
-# Telegram Bot Configuration
-telegram.bot.token=YOUR_TELEGRAM_BOT_TOKEN
-
-# OpenWeather API (opzionale)
-openweather.api.key=YOUR_OPENWEATHER_API_KEY
+BOT_TOKEN=inserisci_qui_il_token_bot
+API_KEY=inserisci_qui_l'api_key
 ```
 
 ### 2️⃣ Ottieni il Bot Token
@@ -225,6 +179,7 @@ java -jar target/tennis-bot-1.0.jar
 ---
 
 ## 🏗️ Architettura
+### Struttura classi
 
 ```
 tennis-bot/
@@ -250,9 +205,334 @@ tennis-bot/
 └── README.md                               # Documentazione
 ```
 
+### Diagramma UML
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                                  Main                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│ + main(args: String[]): void                                            │
+└─────────────────────────────────────────────────────────────────────────┘
+│
+│ uses
+▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            MyConfiguration                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│ - MyConfiguration()                                                     │
+│ + getInstance(): MyConfiguration                                        │
+│ + getProperty(key: String): String                                      │
+└─────────────────────────────────────────────────────────────────────────┘
+│
+│ configures
+▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       BotTelegramGastaldello                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│ + BotTelegramGastaldello(botToken: String, apiKey: String)              │
+│ + consume(update: Update): void                                         │
+│ - setupBotCommands(): void                                              │
+│ - createKeyboard(): ReplyKeyboardMarkup                                 │
+│ - processCommand(command: String, chatId: Long): String                 │
+│ - handlePlayerSearch(chatId: Long, playerName: String): String          │
+│ - handleAddFavorite(chatId: Long, playerName: String): String           │
+│ - handleRemoveFavorite(chatId: Long, playerName: String): String        │
+│ - handleH2HPlayer1(chatId: Long, playerName: String): String            │
+│ - handleH2HPlayer2(chatId: Long, player2Name: String): String           │
+│ - handleWeather(chatId: Long, city: String): String                     │
+│ + getH2H(player1: String, player2: String): String                      │
+│ - formatH2HData(data: H2HData): String                                  │
+│ - formatRankings(rankings: List<Player>, type: String): String          │
+│ - formatMatches(matches: List<Match>): String                           │
+│ - getTournamentEmoji(tournament: String): String                        │
+│ - formatPlayerInfo(player: Player): String                              │
+│ - sendMessage(chatId: Long, text: String, showKeyboard: boolean): void  │
+│ - sendPhoto(chatId: Long, photoUrl: String, caption: String): void      │
+└─────────────────────────────────────────────────────────────────────────┘
+                     │                    │                    │
+                     │ uses               │ uses               │ uses
+                     ▼                    ▼                    ▼
+┌──────────────────────────┐  ┌──────────────────────────┐  ┌──────────────────────────┐
+│    DatabaseManager       │  │     TennisService        │  │    WeatherService        │
+├──────────────────────────┤  ├──────────────────────────┤  ├──────────────────────────┤
+│ + DatabaseManager()      │  │ + TennisService()        │  │ + WeatherService(        │
+│ - initializeDatabase()   │  │ + getATPRankings(        │  │     apiKey: String)      │
+│ + saveUser(chatId: Long, │  │     limit: int):         │  │ + getCurrentWeather(     │
+│     username: String)    │  │     List<Player>         │  │     city: String):       │
+│ + savePlayer(            │  │ + getWTARankings(        │  │     String               │
+│     player: Player)      │  │     limit: int):         │  │ - normalizeCity(         │
+│ + savePlayers(           │  │     List<Player>         │  │     city: String):       │
+│     players: List<       │  │ + getRaceRankings(       │  │     String               │
+│     Player>)             │  │     limit: int):         │  │ - formatWeatherResponse( │
+│ + logInteraction(        │  │     List<Player>         │  │     json: String):       │
+│     chatId: Long,        │  │ + getATPDoubleRankings(  │  │     String               │
+│     command: String)     │  │     limit: int):         │  │ - capitalize(            │
+│ + addFavoritePlayer(     │  │     List<Player>         │  │     text: String):       │
+│     chatId: Long,        │  │ + getWTADoubleRankings(  │  │     String               │
+│     playerName: String): │  │     limit: int):         │  └──────────────────────────┘
+│     String               │  │     List<Player>         │
+│ + removeFavoritePlayer(  │  │ + searchPlayer(          │
+│     chatId: Long,        │  │     playerName: String): │
+│     playerName: String): │  │     Player               │
+│     String               │  │ + getH2HData(            │
+│ + getFavoritePlayers(    │  │     player1: String,     │
+│     chatId: Long):       │  │     player2: String):    │
+│     String               │  │     H2HData              │
+│ + getUserStatistics(     │  │ + getRecentMatches():    │
+│     chatId: Long):       │  │     List<Match>          │
+│     String               │  │ - getRankings(           │
+└──────────────────────────┘  │     limit: int,          │
+                              │     wikiPage: String,    │
+                              │     type: String):       │
+                              │     List<Player>         │
+                              │ - cleanCountry(          │
+                              │     country: String):    │
+                              │     String               │
+                              │ - formatWikipediaName(   │
+                              │     name: String):       │
+                              │     String               │
+                              │ - isTennisPlayer(        │
+                              │     doc: Document):      │
+                              │     boolean              │
+                              │ - extractPlayerInfo(     │
+                              │     doc: Document,       │
+                              │     searchName: String): │
+                              │     Player               │
+                              │ - cleanText(             │
+                              │     text: String):       │
+                              │     String               │
+                              │ - extractBirthDate(      │
+                              │     table: Element):     │
+                              │     String               │
+                              │ - extractFromTable(      │
+                              │     table: Element,      │
+                              │     defaultName: String):│
+                              │     String               │
+                              │ - extractNationality(    │
+                              │     table: Element):     │
+                              │     String               │
+                              │ - extractFromTableRow(   │
+                              │     table: Element,      │
+                              │     keywords: String...):│
+                              │     String               │
+                              │ - extractRanking(        │
+                              │     table: Element): int │
+                              │ - extractGrandSlams(     │
+                              │     table: Element):     │
+                              │     String               │
+                              │ - calculateAge(          │
+                              │     birthDate: String):  │
+                              │     int                  │
+                              │ - searchInRankings(      │
+                              │     playerName: String): │
+                              │     Player               │
+                              │ - extractImageUrl(       │
+                              │     table: Element):     │
+                              │     String               │
+                              │ - getPlayerImageFrom     │
+                              │     Wikipedia(           │
+                              │     playerName: String): │
+                              │     String               │
+                              │ - formatPlayerNameForURL(│
+                              │     name: String):       │
+                              │     String               │
+                              │ - extractPercentage(     │
+                              │     text: String):       │
+                              │     String               │
+                              │ - extractWinLoss(        │
+                              │     text: String):       │
+                              │     String               │
+                              │ - parseIntSafe(          │
+                              │     text: String): int   │
+                              │ - parseMatchText(        │
+                              │     text: String):       │
+                              │     MatchTextData        │
+                              │ - parseScoreNumbers(     │
+                              │     allNumbers: List<    │
+                              │     String>,             │
+                              │     isLive: boolean):    │
+                              │     List<String>         │
+                              │ - isValidTennisScore(    │
+                              │     score1: int,         │
+                              │     score2: int):        │
+                              │     boolean              │
+                              │ - isTournamentTitle(     │
+                              │     text: String):       │
+                              │     boolean              │
+                              │ - determineWinner(       │
+                              │     data: MatchTextData):│
+                              │     String               │
+                              │ - isLocationLine(        │
+                              │     text: String):       │
+                              │     boolean              │
+                              └──────────────────────────┘
+                                           │
+                                           │ creates/uses
+                     ┌─────────────────────┼─────────────────────┐
+                     │                     │                     │
+                     ▼                     ▼                     ▼
+┌──────────────────────────┐  ┌──────────────────────────┐  ┌──────────────────────────┐
+│        Player            │  │        H2HData           │  │         Match            │
+├──────────────────────────┤  ├──────────────────────────┤  ├──────────────────────────┤
+│ + Player(nome: String,   │  │ + H2HData()              │  │ + Match(tournament:      │
+│     paese: String,       │  │ + getPlayer1Name():      │  │     String, location:    │
+│     ranking: int,        │  │     String               │  │     String, player1:     │
+│     punti: int,          │  │ + getPlayer2Name():      │  │     String, player2:     │
+│     eta: int)            │  │     String               │  │     String, score:       │
+│ + getNome(): String      │  │ + getPlayer1Image():     │  │     String, date:        │
+│ + getPaese(): String     │  │     String               │  │     String, priority:    │
+│ + getRanking(): int      │  │ + getPlayer2Image():     │  │     int)                 │
+│ + getPunti(): int        │  │     String               │  │ + getTournament():       │
+│ + getEta(): int          │  │ + getPlayer1PrizeMoney():│  │     String               │
+│ + getExtraInfo(): String │  │     String               │  │ + getPlayer1(): String   │
+│ + getImageUrl(): String  │  │ + getPlayer1WinLoss():   │  │ + getPlayer2(): String   │
+│ + getAltezza(): String   │  │     String               │  │ + getScore(): String     │
+│ + getPeso(): String      │  │ + getPlayer1Win          │  │ + getDate(): String      │
+│ + getMigliorRanking():   │  │     Percentage(): String │  │ + getWinner(): String    │
+│     String               │  │ + getPlayer1Grass(): int │  │ + getDetailedScore():    │
+│ + getVittorieSconfitte():│  │ + getPlayer1Clay(): int  │  │     String               │
+│     String               │  │ + getPlayer1Hard(): int  │  │ + getSetScore(): String  │
+│ + getTitoli(): String    │  │ + getPlayer1Indoor(): int│  │ + getStatus(): String    │
+│ + isTennisPlayer():      │  │ + getPlayer1Titles(): int│  │ + getLocation(): String  │
+│     boolean              │  │ + getPlayer1YTDWinLoss():│  │ + getCurrentGame():      │
+│ + setNome(nome: String)  │  │     String               │  │     String               │
+│ + setPaese(paese: String)│  │ + getPlayer1YTD          │  │ + getPriority(): int     │
+│ + setRanking(            │  │     Percentage(): String │  │ + setTournament(         │
+│     ranking: int)        │  │ + getPlayer2PrizeMoney():│  │     tournament: String)  │
+│ + setPunti(punti: int)   │  │     String               │  │ + setPlayer1(            │
+│ + setEta(eta: int)       │  │ + getPlayer2WinLoss():   │  │     player1: String)     │
+│ + setExtraInfo(          │  │     String               │  │ + setPlayer2(            │
+│     extraInfo: String)   │  │ + getPlayer2Win          │  │     player2: String)     │
+│ + setImageUrl(           │  │     Percentage(): String │  │ + setScore(              │
+│     imageUrl: String)    │  │ + getPlayer2Grass(): int │  │     score: String)       │
+│ + setAltezza(            │  │ + getPlayer2Clay(): int  │  │ + setDate(date: String)  │
+│     altezza: String)     │  │ + getPlayer2Hard(): int  │  │ + setWinner(             │
+│ + setPeso(peso: String)  │  │ + getPlayer2Indoor(): int│  │     winner: String)      │
+│ + setMigliorRanking(     │  │ + getPlayer2Titles(): int│  │ + setDetailedScore(      │
+│     migliorRanking:      │  │ + getPlayer2YTDWinLoss():│  │     detailedScore:       │
+│     String)              │  │     String               │  │     String)              │
+│ + setVittorieSconfitte(  │  │ + getPlayer2YTD          │  │ + setSetScore(           │
+│     vittorieSconfitte:   │  │     Percentage(): String │  │     setScore: String)    │
+│     String)              │  │ + getTotalH2HMatches():  │  │ + setStatus(             │
+│ + setTitoli(             │  │     int                  │  │     status: String)      │
+│     titoli: String)      │  │ + getH2hRecord(): String │  │ + setLocation(           │
+│ + setTennisPlayer(       │  │ + setPlayer1Name(        │  │     location: String)    │
+│     tennisPlayer:        │  │     player1Name: String) │  │ + setCurrentGame(        │
+│     boolean)             │  │ + setPlayer2Name(        │  │     currentGame: String) │
+│ + toString(): String     │  │     player2Name: String) │  │ + setPriority(           │
+└──────────────────────────┘  │ + setPlayer1Image(       │  │     priority: int)       │
+                              │     player1Image: String)│  │ + isFinished(): boolean  │
+                              │ + setPlayer2Image(       │  │ + isAnnullata(): boolean │
+                              │     player2Image: String)│  │ + isLive(): boolean      │
+                              │ + setPlayer1PrizeMoney(  │  │ + isTavolino(): boolean  │
+                              │     player1PrizeMoney:   │  │ + toString(): String     │
+                              │     String)              │  └──────────────────────────┘
+                              │ + setPlayer1WinLoss(     │
+                              │     player1WinLoss:      │
+                              │     String)              │
+                              │ + setPlayer1Win          │
+                              │     Percentage(          │
+                              │     player1WinPercentage:│
+                              │     String)              │
+                              │ + setPlayer1Grass(       │
+                              │     player1Grass: int)   │
+                              │ + setPlayer1Clay(        │
+                              │     player1Clay: int)    │
+                              │ + setPlayer1Hard(        │
+                              │     player1Hard: int)    │
+                              │ + setPlayer1Indoor(      │
+                              │     player1Indoor: int)  │
+                              │ + setPlayer1Titles(      │
+                              │     player1Titles: int)  │
+                              │ + setPlayer1YTDWinLoss(  │
+                              │     player1YTDWinLoss:   │
+                              │     String)              │
+                              │ + setPlayer1YTD          │
+                              │     Percentage(          │
+                              │     player1YTDPercentage:│
+                              │     String)              │
+                              │ + setPlayer2PrizeMoney(  │
+                              │     player2PrizeMoney:   │
+                              │     String)              │
+                              │ + setPlayer2WinLoss(     │
+                              │     player2WinLoss:      │
+                              │     String)              │
+                              │ + setPlayer2Win          │
+                              │     Percentage(          │
+                              │     player2WinPercentage:│
+                              │     String)              │
+                              │ + setPlayer2Grass(       │
+                              │     player2Grass: int)   │
+                              │ + setPlayer2Clay(        │
+                              │     player2Clay: int)    │
+                              │ + setPlayer2Hard(        │
+                              │     player2Hard: int)    │
+                              │ + setPlayer2Indoor(      │
+                              │     player2Indoor: int)  │
+                              │ + setPlayer2Titles(      │
+                              │     player2Titles: int)  │
+                              │ + setPlayer2YTDWinLoss(  │
+                              │     player2YTDWinLoss:   │
+                              │     String)              │
+                              │ + setPlayer2YTD          │
+                              │     Percentage(          │
+                              │     player2YTDPercentage:│
+                              │     String)              │
+                              │ + setTotalH2HMatches(    │
+                              │     totalH2HMatches: int)│
+                              │ + setH2hRecord(          │
+                              │     h2hRecord: String)   │
+                              └──────────────────────────┘
+```
 ---
 
 ## 🗄️ Database
+
+### Diagramma E/R
+```
++-------------------+           +------------------+           +-------------------+
+|     User          |1         N|  FavoritePlayer  |N         1|     Player        |
++-------------------+-----------+------------------+-----------+-------------------+
+| chat_id (PK)      |           | id (PK)          |           | id (PK)           |
+| username          |           | added_at         |           | name (UNIQUE)     |
+| first_interaction |           +------------------+           | country           |
+| last_interaction  |                                          | ranking           |
+| total_interactions|                                          | points            |
++-------------------+                                          | age               |
+                                                               | altezza           |
+                                                               | peso              |
+                                                               | miglior_ranking   |
+                                                               | vittorie_sconfitte|
+                                                               | titoli            |
+                                                               | is_tennis_player  |
+                                                               | search_count      |
+                                                               | last_updated      |
+                                                               +-------------------+
++----------------+
+|  Interaction   |
++----------------+
+| id (PK)        |
+| chat_id (FK)   |
+| command        |
+| timestamp      |
++----------------+
+```
+
+### Modello logico-relazionale
+```
+User(chat_id PK, username, first_interaction, last_interaction, total_interactions)
+
+Player(id PK, name, country, ranking, points, age, altezza, peso, miglior_ranking, vittorie_sconfitte, titoli, 
+is_tennis_player, search_count, last_updated)
+
+FavoritePlayer(id PK, chat_id, player_name, added_at, UNIQUE(chat_id, player_name))
+FKs:
+chat_id -> User.chat_id
+player_name -> Player.name
+
+Interaction(id PK, chat_id, command, timestamp)
+FK:
+chat_id -> User.chat_id
+```
 
 ### Schema SQLite
 
@@ -315,7 +595,7 @@ CREATE TABLE interactions (
 ## 🛠️ Tecnologie Utilizzate
 
 ### Backend
-- **Java 17** - Linguaggio principale
+- **Java** - Linguaggio principale
 - **Telegram Bot API** - Integrazione Telegram
 - **OkHttp** - HTTP client per API calls
 
@@ -390,85 +670,8 @@ CREATE TABLE interactions (
 
 ---
 
-## 🚧 Sviluppi Futuri
-
-- [ ] **Notifiche push** per partite giocatori preferiti
-- [ ] **Calendario tornei** settimanale/mensile
-- [ ] **Grafici statistiche** (win rate, ranking trends)
-- [ ] **Supporto multi-lingua** (EN, ES, FR)
-- [ ] **Predizioni match** con AI/ML
-- [ ] **Quiz tennis** interattivi
-- [ ] **Streaming live** link ufficiali
-- [ ] **Deploy su cloud** (AWS/Heroku)
-
----
-
-## 🤝 Contribuire
-
-I contributi sono benvenuti! Ecco come puoi aiutare:
-
-1. **Fork** il progetto
-2. Crea un **branch** per la tua feature (`git checkout -b feature/AmazingFeature`)
-3. **Commit** le modifiche (`git commit -m 'Add some AmazingFeature'`)
-4. **Push** sul branch (`git push origin feature/AmazingFeature`)
-5. Apri una **Pull Request**
-
-### 🐛 Segnala Bug
-Apri una [issue](https://github.com/tuo-username/tennis-bot/issues) descrivendo:
-- Comportamento atteso
-- Comportamento attuale
-- Passi per riprodurre
-- Screenshot (se applicabile)
-
----
-
-## 📝 Licenza
-
-Questo progetto è distribuito sotto licenza **MIT**.  
-Vedi il file [LICENSE](LICENSE) per maggiori dettagli.
-
----
-
 ## 👨‍💻 Autore
 
-**Gastaldello [Il tuo nome]**
-- GitHub: [@tuo-username](https://github.com/tuo-username)
-- Telegram: [@tuo_username_telegram](https://t.me/tuo_username_telegram)
-
----
-
-## 🙏 Ringraziamenti
-
-- [Telegram Bot API](https://core.telegram.org/bots) per la documentazione eccellente
-- [Wikipedia](https://www.wikipedia.org/) per i dati aperti
-- [SofaScore](https://www.sofascore.com/) per le partite live
-- [OpenWeather](https://openweathermap.org/) per le API meteo
-
----
-
-## 📞 Supporto
-
-Hai problemi o domande?
-
-- 📧 Email: tua-email@example.com
-- 💬 Telegram: [@tuo_username](https://t.me/tuo_username)
-- 🐛 Issues: [GitHub Issues](https://github.com/tuo-username/tennis-bot/issues)
-
----
-
-## ⭐ Supporta il Progetto
-
-Se questo progetto ti è stato utile, lascia una ⭐ su GitHub!
-
-```
-               🎾
-        _______________
-       |               |
-       |   TENNIS BOT  |
-       |_______________|
-            |     |
-           /       \
-          🏆       🏆
-```
-
-**Made with ❤️ and ☕ by Gastaldello**
+**Gastaldello Davide**
+- GitHub: [@davithea](https://github.com/davithea)
+- Telegram: [@D_G2007](https://t.me/D_G2007)
