@@ -1076,7 +1076,7 @@ public class TennisService {
             throw new StopScraperException("Torneo non interessante: " + text);	//Blocco subito i tornei che non mi interessano
         }
         String[] allowedTournaments = {
-                "Grand Slam", "Masters 1000", "ATP 250", "ATP 500", "WTA 250",
+                "Grande Slam", "Masters 1000", "ATP 250", "ATP 500", "WTA 250",
                 "WTA 500", "WTA 1000", "United Cup"
         };	//Definisco la lista dei tornei accettati
         for (String t : allowedTournaments) {

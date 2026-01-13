@@ -587,7 +587,7 @@ public class BotTelegramGastaldello implements LongPollingSingleThreadUpdateCons
     //Metodo helper per associare un emoji a una specifica tipologia di torneo
     private String getTournamentEmoji(String tournament) {
         String lower = tournament.toLowerCase();	//Converto il nome in minuscolo
-        if (lower.contains("australian open") || lower.contains("roland garros") ||
+        if (lower.contains("grande slam") || lower.contains("roland garros") || lower.contains("australian open") ||
                 lower.contains("wimbledon") || lower.contains("us open")) {	//Se torneo Grand Slam
             return "🏆";	//Emoji Grand Slam
         } else if (lower.contains("masters")) {	//Se Masters
